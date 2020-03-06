@@ -5,4 +5,4 @@ ONSRidgePlots.R produces a pair of svg files which replicate the beautiful verti
 
 USStateDoDPlots.R produces a plot of the rate of Deaths of Despair (deaths from alcohol, drugs and suicide) by US state from 1999-2018, separated by cause.
 
-![test]("DoDUSStates.png"
+![test](https://github.com/VictimOfMaths/DeathsOfDespair/blob/master/DoDUSStates.png)
