@@ -3,6 +3,11 @@ rm(list=ls())
 library(tidyverse)
 library(curl)
 library(readxl)
+library(cowplot)
+library(sf)
+library(paletteer)
+
+#Read in data by age
 
 temp1 <- tempfile()
 source1 <- "https://www.ons.gov.uk/file?uri=%2fpeoplepopulationandcommunity%2fbirthsdeathsandmarriages%2fdeaths%2fdatasets%2fdeathsrelatedtodrugpoisoningenglandandwalesreferencetable%2fcurrent/2019maindataset1.xls"
@@ -54,13 +59,23 @@ data <- bind_rows(raw.u20, raw.2029, raw.3039, raw.4049, raw.5069, raw.70) %>%
 
 data$age <- factor(data$age, levels=c("u20", "20-29", "30-39", "40-49", "50-69", "70+"))
 
+#Look at differences by gender
+tiff("Outputs/DRDEWSex.tiff", units="in", width=10, height=7, res=500)
 data %>% 
   filter(Country=="Combined" & Definition=="Poisoning" & sex!="Total") %>% 
   ggplot()+
   geom_line(aes(x=year, y=Deaths, colour=sex))+
+  scale_x_continuous(name="")+
+  scale_colour_manual(values=c("#00cc99", "#6600cc"), name="Sex")+
   facet_wrap(~age)+
-  theme_classic()
+  theme_classic()+
+  theme(strip.background=element_blank(), strip.text=element_text(face="bold", size=rel(1)))+
+  labs(title="Most drug-related deaths are among men",
+       subtitle="Deaths from drug poisoning in England & Wales",
+       caption="Date from Office for National Statistics | Plot by @VictimOfMaths")
+dev.off()
 
+#Set up grouped path plot
 data_drd <- subset(data, Country=="Combined" & Definition=="Poisoning" & sex=="Total") %>% 
   arrange(age, year) %>% 
   mutate(index=c(1:162))
@@ -276,3 +291,94 @@ DRDfull <- ggdraw()+
 tiff("Outputs/DRDfullEW.tiff", units="in", width=10, height=7, res=500)
 ggdraw(DRDfull)
 dev.off()
+
+#Read in regional data
+regdata <- read_excel(temp1, sheet="Table 6", range="A9:F331", col_names=FALSE)[,-c(5)]
+colnames(regdata) <- c("year", "code", "name1", "name2", "deaths")
+
+regdata <- regdata %>%
+  mutate(name=coalesce(name1, name2)) %>% 
+  fill(year) %>% 
+  select(year, code, deaths, name) %>% 
+  na.omit() %>% 
+  filter(name!="England")
+
+tiff("Outputs/DRDEWRegions.tiff", units="in", width=10, height=7, res=500)
+ggplot(regdata)+
+  geom_line(aes(x=year, y=deaths, colour=name))+
+  scale_colour_paletteer_d("LaCroixColoR::paired", name="Region")+
+  scale_y_continuous("Deaths per 100,000", limits=c(0,NA))+
+  scale_x_continuous(name="")+
+  theme_classic()+
+  labs(title="Drug-related deaths have risen sharply in the North in recent years",
+       subtitle="Age-standardised deaths per 100,000 from drug poisoning in England & Wales",
+       caption="Date from Office for National Statistics | Plot by @VictimOfMaths")
+dev.off()
+
+#Read in data by Local Authority
+temp2 <- tempfile()
+source2 <- "https://www.ons.gov.uk/file?uri=%2fpeoplepopulationandcommunity%2fbirthsdeathsandmarriages%2fdeaths%2fdatasets%2fdrugmisusedeathsbylocalauthority%2fcurrent/2019localauthorities1.xls"
+temp2 <- curl_download(url=source2, destfile=temp2, quiet=FALSE, mode="wb")
+rawdata <- read_excel(temp2, sheet="Table 3", range="A9:CX438", 
+                      col_names=FALSE)[,c(1:4,6,12,18,24,30,36,42,48,54,60,66,72,78,84,90,96,102)]
+rawdata$name <- coalesce(rawdata$...2, rawdata$...3, rawdata$...4)
+rawdata <- rawdata %>% 
+  select(!c(2:4)) %>% 
+  filter(complete.cases(.))
+
+colnames(rawdata) <- c("code", "2017-19", "2016-18", "2015-17", "2014-16", "2013-15", "2012-14",
+                       "2011-13", "2010-12", "2009-11", "2008-10", "2007-09", "2006-08", "2005-07",
+                       "2004-06", "2003-05", "2002-04", "2001-03", "name")
+
+data <- gather(rawdata, year, deaths, c(2:18))
+data$deaths <- as.numeric(data$deaths)
+
+#Sort out Buckinghamshire
+temp <- subset(data, code=="E06000060")
+
+data$code <- if_else(data$code=="E06000060", "E07000004", as.character(data$code))
+data$name <- if_else(data$name=="Buckinghamshire", "Aylesbury Vale", as.character(data$name))
+
+temp1 <- temp
+temp1$code <- "E07000005"
+temp1$name <- "Chiltern"
+
+temp2 <- temp
+temp2$code <- "E07000006"
+temp2$name <- "South Bucks"
+
+temp$code <- "E07000007"
+temp$name <- "Wycombe"
+
+data <- bind_rows(data, temp, temp1, temp2)
+
+
+#Bring in shapefile
+temp <- tempfile()
+temp2 <- tempfile()
+source <- "https://opendata.arcgis.com/datasets/1d78d47c87df4212b79fe2323aae8e08_0.zip?outSR=%7B%22latestWkid%22%3A27700%2C%22wkid%22%3A27700%7D"
+temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
+unzip(zipfile=temp, exdir=temp2)
+
+#The actual shapefile has a different name each time you download it, so need to fish the name out of the unzipped file
+name <- list.files(temp2, pattern=".shp")
+shapefile <- st_read(file.path(temp2, name))
+
+names(shapefile)[names(shapefile) == "lad19cd"] <- "code"
+
+map <- full_join(data, shapefile, by="code", all.y=TRUE)
+
+tiff("Outputs/DRDfullEWmap.tiff", units="in", width=7, height=8, res=500)
+ggplot()+
+  geom_sf(data=subset(map, year=="2017-19"), aes(geometry=geometry, fill=deaths), colour=NA)+
+  scale_fill_paletteer_c("pals::ocean.amp", name="Deaths\nper 100,000", na.value="White")+
+  theme_classic()+
+  theme(axis.line=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(),
+        axis.title=element_blank(), plot.title=element_text(face="bold"))+
+  labs(title="Drug-related deaths are highest in coastal areas and the North",
+       subtitle="Age-standardised deaths per 100,000 population from drug poisoning in 2017-19.\nAreas coloured in white had too few deaths to calculate a rate (<10).",
+       caption="Data from Office for National Statistics | Plot by @VictimOfMaths")
+dev.off()
+
+
+
