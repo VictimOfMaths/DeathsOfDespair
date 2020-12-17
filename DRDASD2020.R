@@ -8,6 +8,7 @@ library(ggtext)
 library(forcats)
 library(readODS)
 library(sf)
+library(gtools)
 
 #Drug-related deaths by age for Scotland
 temp <- tempfile()
@@ -648,7 +649,7 @@ ggplot(DRD.HB)+
 dev.off()
 
 #DRDs in Scotland by HB and drug
-DRD.HB.drg <- read_excel(temp, sheet="HB3 - drugs reported", range="A14:R27", col_names=FALSE) %>% 
+DRD.HB.drg <- read_excel(rawdata, sheet="HB3 - drugs reported", range="A14:R27", col_names=FALSE) %>% 
   gather(drug, deaths, c(3:18)) %>% 
   rename(HB="...1", total="...2") %>% 
   filter(total>=20) %>% 
@@ -688,33 +689,37 @@ dev.off()
 
 ####################################################################################################
 #Bivariate map
-#Read in Scottish DRD data at Council Level 2019
+#Read in Scottish DRD data at Council Level 2017-2019
 DRD.s <- read_excel(rawdata, sheet="C1 - summary", range="A10:L41", col_names=FALSE) %>% 
-  select(`...1`, `...12`) %>% 
-  rename(LA=`...1`, DRD=`...12`)
+  select(`...1`, `...10`, `...11`, `...12`) %>% 
+  rename(LA=`...1`) %>% 
+  mutate(DRD=(`...10`+`...11`+`...12`)/3) %>% 
+  select(LA, DRD)
 
-#Read in Scottish ASD data at Council Level 2019
+#Read in Scottish ASD data at Council Level 2017-2019
 temp <- tempfile()
 source <- "https://www.nrscotland.gov.uk/files//statistics/alcohol-deaths/2019/alcohol-specific-deaths-19-all-tabs.xlsx"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
-ASD.s <- as.data.frame(t(read_excel(temp, sheet="5 - Local Authority", range=c("C46:AH46"), col_names=FALSE))) %>% 
-  rename(ASD=V1)
+ASD.s <- as.data.frame(t(read_excel(temp, sheet="5 - Local Authority", range=c("C44:AH46"), col_names=FALSE))) %>% 
+  mutate(ASD=(V1+V2+V3)/3) %>% 
+  select(ASD)
 
 #The columes in the ASD data match the DRD data, so don't bother faffing about with names
 DRDASD.s <- cbind(DRD.s, ASD.s)
 
 #Read in English & Welsh data at LTLA level
-#DRDs
+#DRDs 2017-19
 temp <- tempfile()
 source <- "https://www.ons.gov.uk/file?uri=%2fpeoplepopulationandcommunity%2fbirthsdeathsandmarriages%2fdeaths%2fdatasets%2fdrugmisusedeathsbylocalauthority%2fcurrent/2019localauthorities1.xls"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
 DRD.ew <- read_excel(temp, sheet="Table 6", range="A7:E438", col_names=FALSE) %>% 
   mutate(LA=coalesce(`...3`, `...4`)) %>% 
-  #filter(!is.na(LA)& is.na(`...3`)) %>% 
   select(`...1`, `...5`, LA) %>% 
-  rename(code=`...1`, DRD=`...5`) %>% 
+  rename(code=`...1`, DRD=`...5`) %>%
+  #adjust for the fact that the number of deaths is ths cumulative 3 year total
+  mutate(DRD=DRD/3) %>% 
   #fix names that don't align with ASD data
   mutate(LA=case_when(
     LA=="Kingston upon Hull, City of" ~ "Kingston upon Hull",
@@ -725,16 +730,31 @@ DRD.ew <- read_excel(temp, sheet="Table 6", range="A7:E438", col_names=FALSE) %>
     #Tidy up Welsh LA names
     LA=if_else(substr(code, 1, 1)=="W", substr(LA, 1, regexpr("/", LA)-2), as.character(LA)))
 
-#ASDs for England
+#ASDs for England 2016-18
 temp <- tempfile()
 source <- "https://fingertipsws.phe.org.uk/api/all_data/csv/by_profile_id?parent_area_code=E92000001&parent_area_type_id=6&child_area_type_id=102&profile_id=87&category_area_code="
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
 ASD.e <- read.csv(temp) %>% 
   filter(Indicator.ID=="91380" & Sex=="Persons" & Area.Type=="County & UA (pre 4/19)") %>% 
-  select(Area.Code, Area.Name, Count, Time.period) %>% 
-  rename(code=Area.Code, LA=Area.Name, ASD=Count)
+  select(Area.Code, Area.Name, Value, Time.period) %>% 
+  rename(code=Area.Code, LA=Area.Name, rate=Value)
 
+#Bring in population (based on 2017 data to cope with Dorset)
+temp <- tempfile()
+source <- "https://www.ons.gov.uk/file?uri=%2fpeoplepopulationandcommunity%2fpopulationandmigration%2fpopulationestimates%2fdatasets%2fpopulationestimatesforukenglandandwalesscotlandandnorthernireland%2fmid2017/ukmidyearestimates2017finalversion.xls"
+temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
+
+LApop <- read_excel(temp, sheet="MYE2 - All", range="A6:D445", col_names=FALSE) %>% 
+  select(-`...3`) %>% 
+  rename(code=`...1`, LA=`...2`, pop=`...4`)
+
+ASD.e <- merge(ASD.e, LApop, by="code", all.x=TRUE) %>% 
+  select(-LA.y) %>% 
+  rename(LA=LA.x) %>% 
+  mutate(ASD=rate*pop/100000)
+
+#Faff about with Dorset & Bournemouth, which are missing from the latest data
 temp <- subset(ASD.e, code %in% c("E06000028", "E06000029", "E10000009") & 
                  Time.period=="2015 - 17") %>% 
   mutate(code=case_when(
@@ -752,21 +772,16 @@ ASD.e <- ASD.e %>%
   summarise(ASD=sum(ASD)) %>% 
   ungroup()
 
-
-#ASDs for Wales - you seem to have to get a new link each time you go to this page,
-#Which is quite annoying. 2015-17
-#https://publichealthwales.shinyapps.io/AlcoholinWales
+#ASDs for Wales 2015-17
 temp <- tempfile()
-source <- "https://publichealthwales.shinyapps.io/AlcoholinWales/_w_bb4dfc77/session/7f8f9c832d01dcd0c0679739ca9377a4/download/csv_la2_sp_table?w=bb4dfc77"
+source <- "https://www.healthmapswales.wales.nhs.uk/IAS/data/csv?viewId=155&geoId=108&subsetId=&viewer=CSV"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
-ASD.w <- read.csv(temp) %>% 
-  filter(Sex=="Persons") %>% 
-  select(Local.authority, Annual.average) %>% 
-  rename(LA=Local.authority, ASD=Annual.average) 
+ASD.w <- read.csv(temp)[c(1:22),c(2,161)] %>% 
+  rename(LA=Name, ASD=Numerator.27) %>% 
+  mutate(LA=if_else(LA=="The Vale of Glamorgan", "Vale of Glamorgan", as.character(LA)))
 
 DRDASD.ew <- merge(bind_rows(ASD.e, ASD.w), DRD.ew, by="LA", all.x=TRUE) %>% 
-  filter(LA!="Wales") %>% 
   mutate(code=coalesce(code.x, code.y)) %>% 
   select(-code.x, -code.y)
 
@@ -775,44 +790,56 @@ temp <- tempfile()
 source <- "https://www.ninis2.nisra.gov.uk/Download/Population/Drug%20Related%20Deaths%20and%20Deaths%20due%20to%20Drug%20Misuse%20(administrative%20geographies).ods"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
-DRD.ni <- read_ods(temp, sheet="LGD2014", range="A5:D15", col_names=FALSE) %>% 
-  select(-C) %>% 
-  rename(LA=A, code=B, DRD=D)
+DRD.ni <- read_ods(temp, sheet="LGD2014", range="A5:H15", col_names=FALSE) %>% 
+  select(-C, -E, -G) %>% 
+  mutate(DRD=(D+`F`+H)/3) %>% 
+  rename(LA=A, code=B) %>% 
+  select(LA, code, DRD)
 
 #Read in NI ASD by LA 2017
 temp <- tempfile()
 source <- "https://www.ninis2.nisra.gov.uk/Download/Population/Alcohol%20Specific%20Deaths%20(administrative%20geographies).ods"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
-ASD.ni <- read_ods(temp, sheet="LGD2014", range="A5:C15", col_names=FALSE) %>% 
-  rename(LA=A, code=B, ASD=C)
+ASD.ni <- read_ods(temp, sheet="LGD2014", range="A5:E15", col_names=FALSE) %>% 
+  mutate(ASD=(C+D+E)/3) %>% 
+  rename(LA=A, code=B) %>% 
+  select(LA, code, ASD)
 
 DRDASD.ni <- merge(DRD.ni, ASD.ni)
 
-#Bring in populations for NI & Scotland, codes for Scotland and bring together
+#Bring in populations (2019)
 temp <- tempfile()
 source <- "https://www.ons.gov.uk/file?uri=%2fpeoplepopulationandcommunity%2fpopulationandmigration%2fpopulationestimates%2fdatasets%2fpopulationestimatesforukenglandandwalesscotlandandnorthernireland%2fmid2019april2020localauthoritydistrictcodes/ukmidyearestimates20192020ladcodes.xls"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
-LApop <- read_excel(temp, sheet="MYE2 - Persons", range="A6:D431", col_names=FALSE) %>% 
+LApop2 <- read_excel(temp, sheet="MYE2 - Persons", range="A6:D431", col_names=FALSE) %>% 
   select(-`...3`) %>% 
-  rename(code=`...1`, LA=`...2`, pop=`...4`)
+  rename(code=`...1`, LA=`...2`, pop=`...4`) %>% 
+  mutate(code=if_else(code=="E06000060", "E10000002", as.character(code)))
 
 #Scotland
 DRDASD.s <- DRDASD.s %>% 
   mutate(LA=str_replace(LA, "&", "and")) %>% 
-  merge(LApop, by="LA", all.x=TRUE)
+  merge(LApop2, by="LA", all.x=TRUE)
 
 #NI
-DRDASD.ni <- merge(DRDASD.ni, LApop, all.x=TRUE)
+DRDASD.ni <- merge(DRDASD.ni, LApop2, all.x=TRUE)
 
 #England
-DRDASD.ew <- merge(DRDASD.ew, LApop, all.x=TRUE, by="code")
+DRDASD.ew <- merge(DRDASD.ew, LApop2, all.x=TRUE, by="code") %>% 
+  select(-LA.y) %>% 
+  rename(LA=LA.x)
 
 #Merge
 DRDASD <- bind_rows(DRDASD.s, DRDASD.ew, DRDASD.ni) %>% 
   gather(cause, deaths, c("DRD", "ASD")) %>% 
-  mutate(mortrate=deaths*100000/pop)
+  mutate(mortrate=deaths*100000/pop) %>% 
+  mutate(country=case_when(
+    substr(code, 1, 1)=="E" ~ "England",
+    substr(code, 1, 1)=="W" ~ "Wales",
+    substr(code, 1, 1)=="S" ~ "Scotland",
+    substr(code, 1, 1)=="N" ~ "Northern Ireland"))
 
 #Download shapefile
 temp <- tempfile()
@@ -829,19 +856,264 @@ names(shapefile)[names(shapefile) == "ctyua19cd"] <- "code"
 map.data <- full_join(shapefile, DRDASD, by="code")
 
 #ASD map only
-ggplot()+
+ASDUK <- ggplot()+
   geom_sf(data=subset(map.data, cause=="ASD"), aes(geometry=geometry, fill=mortrate), 
           colour=NA)+
-  scale_fill_paletteer_c("pals::ocean.ice", direction=-1, name="Deaths\nper 100,000")+
+  scale_fill_paletteer_c("pals::ocean.ice", direction=-1, name="Deaths\nper 100,000",
+                         na.value="White")+
   theme_classic()+
   theme(axis.line=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(),
         axis.title=element_blank())
 
+tiff("Outputs/ASD2020UK.tiff", units="in", width=8.5, height=14, res=500)
+ASDUK+labs(title="In spite of recent progress, alcohol-specific deaths remain highest in Scotland",
+           subtitle="Rates of mortality from alcohol-specific causes in UK Local Authorities",
+           caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects the most recently-available figures for each jurisdiction")+
+  theme(plot.title=element_text(face="bold", size=rel(1.4)),
+        plot.subtitle=element_text(size=rel(1.2)))
+
+dev.off()
+
 #DRD map only
-ggplot()+
+DRDUK <- ggplot()+
   geom_sf(data=subset(map.data, cause=="DRD"), aes(geometry=geometry, fill=mortrate), 
           colour=NA)+
-  scale_fill_paletteer_c("pals::ocean.amp", name="Deaths\nper 100,000")+
+  scale_fill_paletteer_c("pals::ocean.amp", name="Deaths\nper 100,000",
+                         na.value="White")+
   theme_classic()+
   theme(axis.line=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(),
         axis.title=element_blank())
+
+
+tiff("Outputs/DRD2020UK.tiff", units="in", width=8.5, height=14, res=500)
+DRDUK+labs(title="There is huge variation in drug deaths across the country",
+           subtitle="Rates of deaths from drug misuse in UK Local Authorities",
+           caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
+  theme(plot.title=element_text(face="bold", size=rel(1.4)),
+        plot.subtitle=element_text(size=rel(1.2)))
+
+dev.off()
+
+#Both on the same plot
+tiff("Outputs/ASDDRD2020UK.tiff", units="in", width=10, height=8, res=500)
+plot_grid(ASDUK+labs(title="Patterns in alcohol and drug deaths across the UK",
+                     subtitle="Mortality rates from <span style='color:skyblue4;'>alcohol-specific causes</span> and <span style='color:tomato4;'>drug misuse")+
+            theme(plot.title=element_text(face="bold", size=rel(1.2)),
+                  plot.subtitle=element_markdown()), 
+          DRDUK+labs(caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction"),
+          align="h")
+dev.off()
+
+#BIVARIATE MAP
+bidata <- DRDASD %>% 
+  select(LA, code, cause, mortrate, country) %>% 
+  spread(cause, mortrate) %>% 
+  #generate tertiles
+  mutate(alctert=quantcut(ASD, q=3, labels=FALSE),
+         drgtert=quantcut(DRD, q=3, labels=FALSE),
+         #generate key for colours
+         key=case_when(
+           alctert==1 & drgtert==1 ~ 1,
+           alctert==1 & drgtert==2 ~ 2,
+           alctert==1 & drgtert==3 ~ 3,
+           alctert==2 & drgtert==1 ~ 4,
+           alctert==2 & drgtert==2 ~ 5,
+           alctert==2 & drgtert==3 ~ 6,
+           alctert==3 & drgtert==1 ~ 7,
+           alctert==3 & drgtert==2 ~ 8,
+           alctert==3 & drgtert==3 ~ 9),
+         #assign colours
+         colour=case_when(
+           key==1 ~ "#CABED0",
+           key==2 ~ "#BC7C5F",
+           key==3 ~ "#AE3A4E",
+           key==4 ~ "#89A1C8",
+           key==5 ~ "#806A8A",
+           key==6 ~ "#77324C",
+           key==7 ~ "#4885C1",
+           key==8 ~ "#435786",
+           key==9 ~ "#3f2949"))
+  
+#save cutoffs
+alccut1 <- quantile(bidata$ASD, probs=1/3, na.rm=TRUE)
+alccut2 <- quantile(bidata$ASD, probs=2/3, na.rm=TRUE)
+drgcut1 <- quantile(bidata$DRD, probs=1/3, na.rm=TRUE)
+drgcut2 <- quantile(bidata$DRD, probs=2/3, na.rm=TRUE)
+
+#generate dataframe for key
+keydata <- bidata %>%
+  filter(!is.na(colour)) %>%
+  group_by(alctert, drgtert) %>%
+  summarise(RGB=unique(colour))
+
+bimap <- full_join(shapefile, bidata, by="code")
+
+BIVAR <- ggplot(bimap)+
+  geom_sf(aes(geometry=geometry, fill=colour), colour="white", size=0.01)+
+  scale_fill_identity()+ labs(title="Regional patterns in deaths from alcohol and drugs across the UK",
+                              subtitle="Comparative rates of alcohol-specific deaths and deaths from drug misuse by Local Authority",
+                              caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
+  #Highland
+  #annotate("text", x=500000, y=970000, label="Purple areas mean\nhigh rates of alcohol and \nhigh rates of drug deaths", size=3)+
+  annotate("text", x=500000, y=970000, label="Purple areas mean\nhigh rates of alcohol and \nhigh rates of drug deaths", size=3)+
+  #York
+  annotate("text", x=150000, y=290000, label="Blue areas mean\nhigh rates of alcohol and \nlow rates of drug deaths", size=3)+
+  #Dumfires & galloway
+  annotate("text", x=230000, y=470000, label="Red areas mean\nlow rates of alcohol and \nhigh rates of drug deaths", size=3)+
+  #Dorset
+  annotate("text", x=440000, y=27000, label="Grey areas mean\nlow rates of alcohol and \nlow rates of drug deaths", size=3)+
+  geom_curve(aes(x=434000, y=955000, xend=220000, yend=850000), curvature=0.15)+
+  geom_curve(aes(x=220000, y=280000, xend=315000, yend=200000), curvature=-0.15)+
+  geom_curve(aes(x=300000, y=475000, xend=463000, yend=452000), curvature=-0.2)+
+  geom_curve(aes(x=420000, y=57000, xend=370000, yend=100000), curvature=0.1)+
+  theme_classic()+
+  theme(axis.line=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(),
+        axis.title=element_blank(), plot.title=element_text(face="bold", size=rel(1.2)))
+
+key <- ggplot(keydata)+
+  geom_tile(aes(x=alctert, y=drgtert, fill=RGB))+
+  scale_fill_identity()+
+  labs(x = expression("More alcohol-specific deaths" %->%  ""),
+       y = expression("More drug poisoning deaths" %->%  "")) +
+  theme_classic() +
+  # make font small enough
+  theme(
+    axis.title = element_text(size = 8),axis.line=element_blank(), 
+    axis.ticks=element_blank(), axis.text=element_blank())+
+  # quadratic tiles
+  coord_fixed()
+
+tiff("Outputs/ASDDRD2020BivariateUK.tiff", units="in", width=8.5, height=14, res=500)
+ggdraw()+
+  draw_plot(BIVAR, 0,0,1,1)+
+  draw_plot(key, 0.03,0.48,0.29,0.74)
+dev.off()
+
+#Add zoomed in areas
+#London
+London <- ggplot(bimap)+
+  geom_sf(aes(geometry=geometry, fill=colour), colour="white")+  
+  xlim(500000,560000)+
+  ylim(156000,200000)+
+  theme_classic()+
+  scale_fill_identity()+
+  labs(title="Greater London")+
+  theme(axis.line=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(),
+        axis.title=element_blank(), plot.title=element_text(face="bold"))
+
+#North-West England
+NWEng <- ggplot(bimap)+
+  geom_sf(aes(geometry=geometry, fill=colour), colour="white")+  
+  xlim(310000,440000)+
+  ylim(370000,430000)+
+  theme_classic()+
+  scale_fill_identity()+
+  labs(title="NW England")+
+  theme(axis.line=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(),
+        axis.title=element_blank(), plot.title=element_text(face="bold"))
+
+#Tyne/Tees  
+NEEng <- ggplot(bimap)+
+  geom_sf(aes(geometry=geometry, fill=colour), colour="white")+  
+  xlim(405000,490000)+
+  ylim(505000,580000)+
+  theme_classic()+
+  scale_fill_identity()+
+  labs(title="NE England")+
+  theme(axis.line=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(),
+        axis.title=element_blank(), plot.title=element_text(face="bold"))
+
+#Central Belt
+CScot <- ggplot(bimap)+
+  geom_sf(aes(geometry=geometry, fill=colour), colour="white")+  
+  xlim(220000,341000)+
+  ylim(620000,710000)+
+  theme_classic()+
+  scale_fill_identity()+
+  labs(title="Central Scotland")+
+  theme(axis.line=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(),
+        axis.title=element_blank(), plot.title=element_text(face="bold"))
+
+tiff("Outputs/ASDDRD2020BivariateUKZoomed.tiff", units="in", width=8.5, height=13, res=500)
+ggdraw()+
+  draw_plot(BIVAR, 0,0,0.75,1)+
+  draw_plot(key, 0.03,0.7,0.24,0.24)+
+  draw_plot(London, 0.72,0.12,0.27,0.18)+
+  draw_plot(NWEng, 0.62,0.34, 0.35, 0.18)+
+  draw_plot(NEEng, 0.72, 0.48, 0.2, 0.2)+
+  draw_plot(CScot, 0.67, 0.71, 0.3, 0.2)
+dev.off()
+
+#Further explorations of the data
+#scatter coloured by country
+tiff("Outputs/EngScotLAALcDrg.tiff", units="in", width=7, height=6, res=500)
+ggplot(bidata, aes(x=ASD, y=DRD, colour=country))+
+  geom_point()+
+  geom_segment(x=-10, xend=45, y=-10, yend=45, colour="Black")+
+  theme_classic()+
+  theme(plot.title=element_text(face="bold", size=rel(1.2)))+
+  scale_x_continuous(name="Alcohol-specific deaths per 100,000 population", limits=c(0,42))+
+  scale_y_continuous(name="Drug misuse deaths per 100,000 population", limits=c(0,42))+
+  scale_colour_paletteer_d("fishualize::Scarus_quoyi", name="")+
+  annotate("text", x=30, y=6, label="More deaths from alcohol", colour="DarkGrey")+
+  annotate("text", x=10, y=32, label="More deaths from drugs", colour="DarkGrey")+
+  labs(title="Deaths from alcohol and drugs by Local Authority", 
+       subtitle="Alcohol-specific and drug misuse deaths in 2016-18",
+       caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")
+
+dev.off()
+
+#repeat with bivariate key overlaid
+tiff("Outputs/EngScotLAALcDrgTert.tiff", units="in", width=7, height=6, res=500)
+ggplot(bidata, aes(x=ASD, y=DRD, colour=country))+
+  geom_rect(aes(xmin=0,xmax=alccut1, ymin=0, ymax=drgcut1), fill="#CABED0", colour=NA)+
+  geom_rect(aes(xmin=0,xmax=alccut1, ymin=drgcut1, ymax=drgcut2), fill="#BC7C5F", colour=NA)+
+  geom_rect(aes(xmin=0,xmax=alccut1, ymin=drgcut2, ymax=42), fill="#AE3A4E", colour=NA)+
+  geom_rect(aes(xmin=alccut1,xmax=alccut2, ymin=0, ymax=drgcut1), fill="#89A1C8", colour=NA)+
+  geom_rect(aes(xmin=alccut1,xmax=alccut2, ymin=drgcut1, ymax=drgcut2), fill="#806A8A", colour=NA)+
+  geom_rect(aes(xmin=alccut1,xmax=alccut2, ymin=drgcut2, ymax=42), fill="#77324C", colour=NA)+
+  geom_rect(aes(xmin=alccut2,xmax=42, ymin=0, ymax=drgcut1), fill="#4885C1", colour=NA)+
+  geom_rect(aes(xmin=alccut2,xmax=42, ymin=drgcut1, ymax=drgcut2), fill="#435786", colour=NA)+
+  geom_rect(aes(xmin=alccut2,xmax=42, ymin=drgcut2, ymax=42), fill="#3f2949", colour=NA)+
+  geom_point(size=1.5)+
+  geom_point(shape=21, colour="White", size=1.5)+
+  #geom_segment(x=-10, xend=45, y=-10, yend=45, colour="Black")+
+  theme_classic()+
+  theme(plot.title=element_text(face="bold", size=rel(1.2)))+
+  scale_x_continuous(name="Alcohol-specific deaths per 100,000 population", limits=c(0,42))+
+  scale_y_continuous(name="Drug misuse deaths per 100,000 population", limits=c(0,42))+
+  scale_colour_paletteer_d("fishualize::Scarus_quoyi", name="")+
+  labs(title="Deaths from alcohol and drugs by Local Authority", 
+       subtitle="Alcohol-specific and drug misuse deaths in 2016-18 coloured by tertile",
+       caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")
+
+dev.off()
+
+#ordered point charts
+tiff("Outputs/EngScotLAALcCIs.tiff", units="in", width=8, height=6, res=500)
+ggplot(bidata, aes(x=fct_reorder(as.factor(LA), ASD), y=ASD, colour=country))+
+  geom_point()+
+  theme_classic()+
+  scale_colour_paletteer_d("fishualize::Scarus_quoyi", name="")+
+  scale_x_discrete(name="Local Authority")+
+  scale_y_continuous(name="Alcohol-specific deaths per 100,000")+
+  labs(title="One of these countries is not like the others", 
+       subtitle="Annual deaths from alcohol-specific causes per 100,000 population across UK Local Authorities",
+       caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(),
+        plot.title=element_text(face="bold", size=rel(1.2)))
+dev.off()
+
+tiff("Outputs/EngScotLADrgCIs.tiff", units="in", width=8, height=6, res=500)
+ggplot(bidata, aes(x=fct_reorder(as.factor(LA), DRD), y=DRD, colour=country))+
+  geom_point()+
+  theme_classic()+
+  scale_colour_paletteer_d("fishualize::Scarus_quoyi", name="")+
+  scale_x_discrete(name="Local Authority")+
+  scale_y_continuous(name="Drug misuse deaths per 100,000")+
+  labs(title="One of these countries is not like the others", 
+       subtitle="Annual deaths from drug misuse per 100,000 population across UK Local Authorities",
+       caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(),
+        plot.title=element_text(face="bold", size=rel(1.2)))
+dev.off()
