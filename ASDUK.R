@@ -635,3 +635,141 @@ ASDfull <- ggdraw()+
 tiff("Outputs/ASDUK2001to19.tiff", units="in", width=9, height=6.6, res=500)
 ggdraw(ASDfull)
 dev.off()
+
+#####################################################################
+#Try and get at similar 2020 analysis for Scotland
+q1file <- tempfile()
+q2file <- tempfile()
+q3file <- tempfile()
+q4file <- tempfile()
+
+q1url <- "https://www.nrscotland.gov.uk/files//statistics/births-marriages-deaths-quarterly/20/q1/quarter-1-20-tables.xlsx"
+q2url <- "https://www.nrscotland.gov.uk/files//statistics/births-marriages-deaths-quarterly/20/q2/quarter-2-20-tables.xlsx"
+q3url <- "https://www.nrscotland.gov.uk/files//statistics/births-marriages-deaths-quarterly/20/q3/quarter-3-20-tables.xls"
+q4url <- "https://www.nrscotland.gov.uk/files//statistics/births-marriages-deaths-quarterly/19/q4/quarter-4-19-tables.xlsx"
+
+q1file <- curl_download(url=q1url, destfile=q1file, quiet=FALSE, mode="wb")
+q2file <- curl_download(url=q2url, destfile=q2file, quiet=FALSE, mode="wb")
+q3file <- curl_download(url=q3url, destfile=q3file, quiet=FALSE, mode="wb")
+q4file <- curl_download(url=q4url, destfile=q4file, quiet=FALSE, mode="wb")
+
+q1data <- read_excel(q1file, sheet="Q4", range="A9:I89", col_names=FALSE) %>% 
+  filter(`...1` %in% c("F10", "K70, K73-74"))
+
+colnames(q1data) <- c("ICD-10", "cause", "2015", "2016", "2017", "2018", "2019", 
+                       "2015-19", "2020")
+
+q1data <- q1data %>% 
+  select(-`2015-19`) %>% 
+  gather(year, deaths, c(3:8)) %>% 
+  mutate(quarter="Q1")
+
+q2data <- read_excel(q2file, sheet="Q4", range="A9:I89", col_names=FALSE) %>% 
+  filter(`...1` %in% c("F10", "K70, K73-74"))
+
+colnames(q2data) <- c("ICD-10", "cause", "2015", "2016", "2017", "2018", "2019", 
+                      "2015-19", "2020")
+
+q2data <- q2data %>% 
+  select(-`2015-19`) %>% 
+  gather(year, deaths, c(3:8)) %>% 
+  mutate(quarter="Q2")
+
+q3data <- read_excel(q3file, sheet="Q4", range="A9:I89", col_names=FALSE) %>% 
+  filter(`...1` %in% c("F10", "K70, K73-74"))
+
+colnames(q3data) <- c("ICD-10", "cause", "2015", "2016", "2017", "2018", "2019", 
+                      "2015-19", "2020")
+
+q3data <- q3data %>% 
+  select(-`2015-19`) %>% 
+  gather(year, deaths, c(3:8)) %>% 
+  mutate(quarter="Q3")
+
+q4data <- read_excel(q1file, sheet="Q4", range="A9:I92", col_names=FALSE) %>% 
+  filter(`...1` %in% c("F10", "K70, K73-74"))
+
+colnames(q4data) <- c("ICD-10", "cause", "2014", "2015", "2016", "2017", "2018", 
+                      "2014-18", "2019")
+
+q4data <- q4data %>% 
+  select(-`2014-18`) %>% 
+  gather(year, deaths, c(3:8)) %>% 
+  mutate(quarter="Q4")
+
+#Merge quarters
+scotdata <- bind_rows(q1data, q2data, q3data, q4data) %>% 
+  mutate(year=as.numeric(year), deaths=as.numeric(deaths))
+
+#Add totals
+scotdata <- scotdata %>% 
+  group_by(quarter, year) %>% 
+  summarise(deaths=sum(deaths)) %>% 
+  ungroup() %>% 
+  mutate(cause="Total") %>% 
+  bind_rows(scotdata) %>% 
+  filter(year>2014) %>% 
+  mutate(index=(year-2015)*4,
+         index=index+as.numeric(substr(quarter, 2, 3))-1)
+
+#Time series data
+tiff("Outputs/ASDxCauseScot.tiff", units="in", width=9, height=7, res=500)
+ggplot(subset(scotdata, cause!="Total"))+
+  geom_line(aes(x=index, y=deaths, colour=cause), show.legend=FALSE)+
+  scale_x_continuous(name="", breaks=c(0,4,8,12,16,20),
+                    labels=c("2015", "2016", "2017", "2018", "2019", "2020"))+
+  scale_y_continuous(name="Number of deaths", limits=c(0,NA))+
+  scale_colour_paletteer_d("NineteenEightyR::malibu")+
+  theme_classic()+
+  theme(plot.title=element_text(face="bold", size=rel(1.2)),
+        plot.subtitle=element_markdown(),
+        strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)))+
+  labs(title="Deaths in Scotland from causes closely linked to alcohol don't seem to have risen in 2020",
+       subtitle="Quarterly deaths from <span style='color:#FF4E86;'>liver disease</span> and <span style='color:#FF9E44;'>mental & behavioural disorders due to alcohol</span> in Scotland",
+       caption="Data from ONS | Plot by @VictimOfMaths")
+dev.off()
+
+#Quarterly comparison
+tiff("Outputs/ASDxCauseScotWith2020Quarterly.tiff", units="in", width=8, height=6, res=500)
+ggplot()+
+  geom_line(data=subset(scotdata, cause=="Total"), 
+            aes(x=quarter, y=deaths, group=year), colour="Grey70")+
+  geom_point(data=subset(scotdata, cause=="Total"), 
+             aes(x=quarter, y=deaths), colour="Grey70")+
+  geom_line(data=subset(scotdata, cause=="Total" & year==2020),
+            aes(x=quarter, y=deaths, group=year), colour="#FF4E86")+
+  geom_point(data=subset(scotdata, cause=="Total" & year==2020),
+            aes(x=quarter, y=deaths), colour="#FF4E86")+
+  scale_x_discrete(name="Quarter")+
+  scale_y_continuous(name="Number of deaths", limits=c(0,NA))+
+  theme_classic()+
+  theme(plot.title=element_text(face="bold", size=rel(1.2)),
+        plot.subtitle=element_markdown())+
+  labs(title="Deaths linked to alcohol don't seem to have risen in Scotland in 2020",
+       subtitle="Quarterly mortality rates from liver disease and mental & behavioural disorders due to alcohol<br>in Scotland in <span style='color:#FF4E86;'>2020</span>, compared to 2015-19",
+       caption="Data from ONS | Plot by @VictimOfMaths")
+dev.off()
+
+tiff("Outputs/ASDxCauseScotWith2020Quarterly.tiff", units="in", width=9, height=7, res=500)
+ggplot()+
+  geom_line(data=subset(scotdata, cause!="Total"), 
+            aes(x=quarter, y=deaths, group=year), colour="Grey70")+
+  geom_point(data=subset(scotdata, cause!="Total"), 
+             aes(x=quarter, y=deaths), colour="Grey70")+
+  geom_line(data=subset(scotdata, cause!="Total" & year==2020),
+            aes(x=quarter, y=deaths, group=year), colour="#FF4E86")+
+  geom_point(data=subset(scotdata, cause!="Total" & year==2020),
+             aes(x=quarter, y=deaths), colour="#FF4E86")+
+  scale_x_discrete(name="Quarter")+
+  scale_y_continuous(name="Number of deaths", limits=c(0,NA))+
+  facet_wrap(~cause)+
+  theme_classic()+
+  theme(plot.title=element_text(face="bold", size=rel(1.2)),
+        plot.subtitle=element_markdown(),
+        strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)))+
+  labs(title="Deaths linked to alcohol don't seem to have risen in Scotland in 2020",
+       subtitle="Quarterly mortality rates from selected causes linked to alcohol<br>in Scotland in <span style='color:#FF4E86;'>2020</span>, compared to 2015-19",
+       caption="Data from ONS | Plot by @VictimOfMaths")
+dev.off()
