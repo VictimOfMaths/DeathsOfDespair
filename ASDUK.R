@@ -254,6 +254,29 @@ ggplot()+
        caption="Data from ONS | Plot by @VictimOfMaths")
 dev.off()
 
+#Wales only
+tiff("Outputs/ASDWalesWith2020Quarterly.tiff", units="in", width=8, height=6, res=500)
+ggplot()+
+  geom_line(data=subset(data.region, year>=2010 & sex=="Persons" & region=="Wales"), 
+            aes(x=quarter, y=rate, group=year), colour="Grey70")+
+  geom_point(data=subset(data.region, year>=2010 & sex=="Persons" & region=="Wales"), 
+             aes(x=quarter, y=rate), colour="Grey70")+
+  geom_line(data=subset(data.region, year==2020 & sex=="Persons" & region=="Wales"), 
+            aes(x=quarter, y=rate, group=year), colour="#FF4E86")+
+  geom_point(data=subset(data.region, year==2020 & sex=="Persons" & region=="Wales"), 
+             aes(x=quarter, y=rate), colour="#FF4E86")+
+  scale_x_discrete(name="Quarter")+
+  scale_y_continuous(name="Deaths per 100,000", limits=c(0,NA))+
+  theme_classic()+
+  theme(plot.title=element_text(face="bold", size=rel(1.2)),
+        plot.subtitle=element_markdown(),
+        strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)))+
+  labs(title="No clear evidence of an increase in alcohol-specific deaths in Wales",
+       subtitle="Quarterly age-standardised alcohol-specific mortality rates in Wales in <span style='color:#FF4E86;'>2020</span>, compared to 2010-19",
+       caption="Data from ONS | Plot by @VictimOfMaths")
+dev.off()
+
 #Longer-term country-level trends
 data.country <- read_excel(file.main, sheet="Table 1 data", range="A1:H856")
 
@@ -731,7 +754,7 @@ ggplot(subset(scotdata, cause!="Total"))+
 dev.off()
 
 #Quarterly comparison
-tiff("Outputs/ASDxCauseScotWith2020Quarterly.tiff", units="in", width=8, height=6, res=500)
+tiff("Outputs/ASDScotWith2020Quarterly.tiff", units="in", width=8, height=6, res=500)
 ggplot()+
   geom_line(data=subset(scotdata, cause=="Total"), 
             aes(x=quarter, y=deaths, group=year), colour="Grey70")+
@@ -772,4 +795,91 @@ ggplot()+
   labs(title="Deaths linked to alcohol don't seem to have risen in Scotland in 2020",
        subtitle="Quarterly mortality rates from selected causes linked to alcohol<br>in Scotland in <span style='color:#FF4E86;'>2020</span>, compared to 2015-19",
        caption="Data from ONS | Plot by @VictimOfMaths")
+dev.off()
+
+#############################################################
+#Comparable analysis for NI
+NIfile <- tempfile()
+source.NI <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2020Q3.xls"
+NIfile <- curl_download(url=source.NI, destfile=NIfile, quiet=FALSE, mode="wb")
+
+NIdata <- read_excel(NIfile, sheet="Table 1c", range="A45:J97", col_names=FALSE) %>% 
+  rename(year=`...1`, quarter=`...2`, AllCause=`...3`, Cancer=`...4`, IHD=`...5`,
+         Respiratory=`...6`, Suicide.broad=`...7`, Suicide=`...8`, Alcohol=`...9`,
+         Drugs=`...10`) %>%
+  fill(year) %>% 
+  na.omit() %>% 
+  mutate(quarter=case_when(
+    quarter=="1st" ~ "Q1",
+    quarter=="2nd" ~ "Q2",
+    quarter=="3rd" ~ "Q3",
+    quarter=="4th" ~ "Q4"),
+    index=c(1:nrow(.))) %>% 
+  gather(cause, deaths, c(3:10)) %>% 
+  mutate(deaths=as.numeric(str_replace(deaths, "-", "")))
+
+#Time series by cause for deaths of despair
+tiff("Outputs/DODxCauseNI.tiff", units="in", width=9, height=7, res=500)
+ggplot(subset(NIdata, cause %in% c("Alcohol", "Drugs", "Suicide")))+
+  geom_line(aes(x=index, y=deaths, colour=cause), show.legend=FALSE)+
+  scale_x_continuous(name="", breaks=c(0,4,8,12,16,20,24,28,32,36,40,44),
+                     labels=c("2009", "2010", "2011", "2012", "2013", "2014",
+                              "2015", "2016", "2017", "2018", "2019", "2020"))+
+  scale_y_continuous(name="Number of deaths", limits=c(0,NA))+
+  scale_colour_paletteer_d("ggsci::lanonc_lancet")+
+  theme_classic()+
+  theme(plot.title=element_text(face="bold", size=rel(1.2)),
+        plot.subtitle=element_markdown(),
+        strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)))+
+  labs(title="Deaths in Northern Ireland from both alcohol and drugs have been rising for several years",
+       subtitle="Quarterly <span style='color:#00468B;'>deaths from alcohol-specific causes</span>, <span style='color:#ED0000;'>drug-related deaths</span> and <span style='color:#42B540;'>suicides</span> in Northern Ireland",
+       caption="Data from NISRA | Plot by @VictimOfMaths")
+dev.off()
+
+#Quarterly comparisons
+tiff("Outputs/DODxCauseNIWith2020Quarterly.tiff", units="in", width=9, height=7, res=500)
+ggplot()+
+  geom_line(data=subset(NIdata, cause %in% c("Alcohol", "Drugs", "Suicide") & year>=2015), 
+            aes(x=quarter, y=deaths, group=year), colour="Grey70")+
+  geom_point(data=subset(NIdata, cause %in% c("Alcohol", "Drugs", "Suicide") & year>=2015), 
+             aes(x=quarter, y=deaths), colour="Grey70")+
+  geom_line(data=subset(NIdata, cause %in% c("Alcohol", "Drugs", "Suicide") & year==2020),
+            aes(x=quarter, y=deaths, group=year), colour="#FF4E86")+
+  geom_point(data=subset(NIdata, cause %in% c("Alcohol", "Drugs", "Suicide") & year==2020),
+             aes(x=quarter, y=deaths), colour="#FF4E86")+
+  scale_x_discrete(name="Quarter")+
+  scale_y_continuous(name="Number of deaths", limits=c(0,NA))+
+  facet_wrap(~cause)+
+  theme_classic()+
+  theme(plot.title=element_text(face="bold", size=rel(1.2)),
+        plot.subtitle=element_markdown(),
+        strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)))+
+  labs(title="It's unclear whether Northern Ireland has seen a rise in 'deaths of despair' in 2020",
+       subtitle="Quarterly mortality rates in Northern Ireland by cause in <span style='color:#FF4E86;'>2020</span>, compared to 2015-19",
+       caption="Data from NISRA | Plot by @VictimOfMaths")
+dev.off()
+
+#ASD only
+tiff("Outputs/ASDNIWith2020Quarterly.tiff", units="in", width=8, height=6, res=500)
+ggplot()+
+  geom_line(data=subset(NIdata, cause=="Alcohol" & year>=2015), 
+            aes(x=quarter, y=deaths, group=year), colour="Grey70")+
+  geom_point(data=subset(NIdata, cause=="Alcohol" & year>=2015), 
+             aes(x=quarter, y=deaths), colour="Grey70")+
+  geom_line(data=subset(NIdata, cause=="Alcohol" & year==2020),
+            aes(x=quarter, y=deaths, group=year), colour="#FF4E86")+
+  geom_point(data=subset(NIdata, cause=="Alcohol" & year==2020),
+             aes(x=quarter, y=deaths), colour="#FF4E86")+
+  scale_x_discrete(name="Quarter")+
+  scale_y_continuous(name="Number of deaths", limits=c(0,NA))+
+  theme_classic()+
+  theme(plot.title=element_text(face="bold", size=rel(1.2)),
+        plot.subtitle=element_markdown(),
+        strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)))+
+  labs(title="It's unclear whether Northern Ireland saw a rise in alcohol-specific deaths in 2020",
+       subtitle="Quarterly alcohol-specific mortality rates in Northern Ireland in <span style='color:#FF4E86;'>2020</span>, compared to 2015-19",
+       caption="Data from NISRA | Plot by @VictimOfMaths")
 dev.off()
