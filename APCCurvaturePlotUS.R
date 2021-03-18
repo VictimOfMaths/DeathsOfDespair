@@ -39,8 +39,9 @@ USdata <- bind_rows(US.alc, US.drg, US.scd, US.can, US.met, US.tot) %>%
   gather(Cause, Dx, c(4:10))
 
 #Bring in exposures/populations from HMD as CDC data is missing populations for 85+
-username <- "c.r.angus@sheffield.ac.uk" 
-password <- "1574553541"
+#Need to register with HMD (mortality.org) and put your own details in here
+username <- "" 
+password <- ""
 
 USpop <- readHMDweb(CNTRY="USA", "Exposures_1x1", username, password) %>% 
   filter(Year>=1999) %>% 
