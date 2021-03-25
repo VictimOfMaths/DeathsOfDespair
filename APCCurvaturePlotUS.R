@@ -1,3 +1,6 @@
+#Creates APC Curvature plots as introduced by Acosta & van Raalte https://www.demographic-research.org/volumes/vol41/42/default.htm
+#The plotting code here borrows heavily from the code they have very generously shared with that paper.
+
 rm(list=ls())
 
 library(readxl)
