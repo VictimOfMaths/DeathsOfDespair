@@ -6,11 +6,12 @@ library(readxl)
 library(scales)
 library(ggtext)
 library(cowplot)
+library(extrafont)
 
 #Download 4 files
 #Main Alcohol-specific deaths up to 2019
 file.main <- tempfile()
-#Additional data for Q1-3 2020
+#Additional quarterly data for 2020
 file.2020 <- tempfile()
 #Additional liver disease/deprivation data up to 2019
 file.extra <- tempfile()
@@ -18,7 +19,7 @@ file.extra <- tempfile()
 file.cause <- tempfile()
 
 source.main <- "https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/healthandsocialcare/causesofdeath/datasets/alcoholspecificdeathsintheukmaindataset/current/alcoholspecificdeaths2019.xlsx"
-source.2020 <- "https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/datasets/quarterlyalcoholspecificdeathsinenglandandwales/quarter1jantomartoquarter3julytosept2020/2020q1toq3quarterlyalcoholspecificdeaths1.xls"
+source.2020 <- "https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/datasets/quarterlyalcoholspecificdeathsinenglandandwales/quarter1jantomartoquarter4octtodec2020/quarterlyalcoholspecificdeaths.xlsx"
 source.extra <- "https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/healthandsocialcare/causesofdeath/datasets/alcoholspecificdeathsintheunitedkingdomsupplementarydatatables/current/supplementaryanalysis201901022021150545.xlsx"
 source.cause <- "https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/healthandsocialcare/causesofdeath/datasets/alcoholspecificdeathsbysexagegroupandindividualcauseofdeath/current/alcoholspecificdeathsbyindividualcause2019.xlsx"
 
@@ -68,7 +69,7 @@ ggplot(data.dep, aes(x=year))+
 dev.off()
 
 #ASD in 2020
-data.2020 <- read_excel(file.2020, sheet="Table 1", range="B23:AC82", col_names=FALSE) %>% 
+data.2020 <- read_excel(file.2020, sheet="Table 2", range="B23:AC82", col_names=FALSE) %>% 
   select(c(1,4,6,7,9,10,12,13,15,16,18,19,21,22,24,25,27,28)) %>% 
   rename(sex=`...1`, year=`...4`, Q1.deaths=`...6`, Q1.rate=`...7`, Q1.lower=`...9`,
          Q1.upper=`...10`, Q2.deaths=`...12`, Q2.rate=`...13`, Q2.lower=`...15`,
@@ -92,7 +93,7 @@ ggplot(subset(data.2020, sex!="Persons"))+
   scale_fill_manual(values=c("#00cc99", "#6600cc"), name="Sex")+
   theme_classic()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
-        plot.subtitle=element_markdown())+
+        plot.subtitle=element_markdown(), text=element_text(family="Lato"))+
   labs(title="Alcohol-specific deaths have risen in 2020",
        subtitle="Quarterly age-standardised alcohol-specific mortality rates in England & Wales for <span style='color:#6600cc;'>men </span>and <span style='color:#00cc99;'>women",
        caption="Data from ONS | Plot by @VictimOfMaths")
@@ -109,7 +110,7 @@ ggplot()+
   scale_x_discrete(name="Quarter")+
   scale_colour_paletteer_c("scico::vik", name="Year")+
   theme_classic()+
-  theme(plot.title=element_text(face="bold", size=rel(1.2)))+
+  theme(plot.title=element_text(face="bold", size=rel(1.2)), text=element_text(family="Lato"))+
   labs(title="Alcohol-specific deaths are highest in October - March",
        subtitle="Quarterly age-standardised alcohol-specific mortality rates in England & Wales in 2001-2019",
        caption="Data from ONS | Plot by @VictimOfMaths")
@@ -131,14 +132,14 @@ ggplot()+
   scale_y_continuous(name="Age-standardised deaths per 100,000", limits=c(0,NA))+
   theme_classic()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
-        plot.subtitle=element_markdown())+
-  labs(title="Alcohol-specific deaths in January-September 2020 were higher than recent years",
+        plot.subtitle=element_markdown(), text=element_text(family="Lato"))+
+  labs(title="Alcohol-specific deaths increased substantially during the pandemic",
        subtitle="Quarterly age-standardised alcohol-specific mortality rates in England & Wales in <span style='color:#FF4E86;'>2020</span>, compared to 2010-19",
        caption="Data from ONS | Plot by @VictimOfMaths")
 dev.off()
 
 #ASD by age in 2020
-data.age <- read_excel(file.2020, sheet="Table 2", range="B24:AB383", col_names=FALSE) %>% 
+data.age <- read_excel(file.2020, sheet="Table 3", range="B24:AB383", col_names=FALSE) %>% 
   select(1:3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18, 20, 21, 23, 24, 26, 27) %>% 
   rename(sex=`...1`, year=`...2`, age=`...3`, Q1.deaths=`...5`, Q1.rate=`...6`,
          Q1.lower=`...8`, Q1.upper=`...9`, Q2.deaths=`...11`, Q2.rate=`...12`,
@@ -168,8 +169,8 @@ ggplot(subset(data.age, sex=="Persons"))+
   scale_fill_paletteer_d("awtools::a_palette", name="Age")+
   scale_colour_paletteer_d("awtools::a_palette", name="Age")+
   theme_classic()+
-  theme(plot.title=element_text(face="bold", size=rel(1.2)))+
-  labs(title="Alcohol-specific deaths haven't risen across all age groups in 2020",
+  theme(plot.title=element_text(face="bold", size=rel(1.2)), text=element_text(family="Lato"))+
+  labs(title="Alcohol-specific deaths didn't across in age groups in 2020",
        subtitle="Quarterly alcohol-specific mortality rates in England & Wales by age",
        caption="Data from ONS | Plot by @VictimOfMaths")
 dev.off()
@@ -191,14 +192,14 @@ ggplot()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
         plot.subtitle=element_markdown(),
         strip.background=element_blank(),
-        strip.text=element_text(face="bold", size=rel(1)))+
-  labs(title="Alcohol-specific deaths in 2020 have risen in 40-69 year olds",
+        strip.text=element_text(face="bold", size=rel(1)), text=element_text(family="Lato"))+
+  labs(title="Alcohol-specific deaths in 2020 rose 40-69 year olds",
        subtitle="Quarterly age-standardised alcohol-specific mortality rates in England & Wales in <span style='color:#FF4E86;'>2020</span>, compared to 2010-19",
        caption="Data from ONS | Plot by @VictimOfMaths")
 dev.off()
 
 #ASD by region in 2020
-data.region <- read_excel(file.2020, sheet="Table 3", range="B26:AC289", col_names=FALSE) %>% 
+data.region <- read_excel(file.2020, sheet="Table 4", range="B26:AC289", col_names=FALSE) %>% 
   select(c(1,3,4,6,7,9,10,12,13,15,16,18,19,21,22,24,25,27,28)) %>% 
   rename(sex=`...1`, region=`...3`, year=`...4`, Q1.deaths=`...6`, Q1.rate=`...7`, 
          Q1.lower=`...9`, Q1.upper=`...10`, Q2.deaths=`...12`, Q2.rate=`...13`, 
@@ -225,7 +226,7 @@ ggplot(subset(data.region, sex=="Persons" & region!="England"))+
   theme_classic()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
         strip.background=element_blank(),
-        strip.text=element_text(face="bold", size=rel(1)))+
+        strip.text=element_text(face="bold", size=rel(1)), text=element_text(family="Lato"))+
   labs(title="The rise in alcohol-specific deaths has been greatest in the North East",
        subtitle="Quarterly age-standardised alcohol-specific mortality rates in England & Wales by region",
        caption="Data from ONS | Plot by @VictimOfMaths")
@@ -248,8 +249,8 @@ ggplot()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
         plot.subtitle=element_markdown(),
         strip.background=element_blank(),
-        strip.text=element_text(face="bold", size=rel(1)))+
-  labs(title="Not all regions have seen an increase in alcohol-specific deaths",
+        strip.text=element_text(face="bold", size=rel(1)), text=element_text(family="Lato"))+
+  labs(title="Different regions have seen different patterns in alcohol-specific deaths",
        subtitle="Quarterly age-standardised alcohol-specific mortality rates in England & Wales in <span style='color:#FF4E86;'>2020</span>, compared to 2010-19",
        caption="Data from ONS | Plot by @VictimOfMaths")
 dev.off()
@@ -271,7 +272,7 @@ ggplot()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
         plot.subtitle=element_markdown(),
         strip.background=element_blank(),
-        strip.text=element_text(face="bold", size=rel(1)))+
+        strip.text=element_text(face="bold", size=rel(1)), text=element_text(family="Lato"))+
   labs(title="No clear evidence of an increase in alcohol-specific deaths in Wales",
        subtitle="Quarterly age-standardised alcohol-specific mortality rates in Wales in <span style='color:#FF4E86;'>2020</span>, compared to 2010-19",
        caption="Data from ONS | Plot by @VictimOfMaths")
@@ -669,7 +670,7 @@ q4file <- tempfile()
 q1url <- "https://www.nrscotland.gov.uk/files//statistics/births-marriages-deaths-quarterly/20/q1/quarter-1-20-tables.xlsx"
 q2url <- "https://www.nrscotland.gov.uk/files//statistics/births-marriages-deaths-quarterly/20/q2/quarter-2-20-tables.xlsx"
 q3url <- "https://www.nrscotland.gov.uk/files//statistics/births-marriages-deaths-quarterly/20/q3/quarter-3-20-tables.xls"
-q4url <- "https://www.nrscotland.gov.uk/files//statistics/births-marriages-deaths-quarterly/19/q4/quarter-4-19-tables.xlsx"
+q4url <- "https://www.nrscotland.gov.uk/files//statistics/births-marriages-deaths-quarterly/20/q4/quarter-4-20-tables.xlsx"
 
 q1file <- curl_download(url=q1url, destfile=q1file, quiet=FALSE, mode="wb")
 q2file <- curl_download(url=q2url, destfile=q2file, quiet=FALSE, mode="wb")
@@ -709,14 +710,14 @@ q3data <- q3data %>%
   gather(year, deaths, c(3:8)) %>% 
   mutate(quarter="Q3")
 
-q4data <- read_excel(q1file, sheet="Q4", range="A9:I92", col_names=FALSE) %>% 
+q4data <- read_excel(q4file, sheet="Q4", range="A9:I93", col_names=FALSE) %>% 
   filter(`...1` %in% c("F10", "K70, K73-74"))
 
-colnames(q4data) <- c("ICD-10", "cause", "2014", "2015", "2016", "2017", "2018", 
-                      "2014-18", "2019")
+colnames(q4data) <- c("ICD-10", "cause", "2015", "2016", "2017", "2018", "2019", 
+                      "2015-19", "2020")
 
 q4data <- q4data %>% 
-  select(-`2014-18`) %>% 
+  select(-`2015-19`) %>% 
   gather(year, deaths, c(3:8)) %>% 
   mutate(quarter="Q4")
 
@@ -747,7 +748,7 @@ ggplot(subset(scotdata, cause!="Total"))+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
         plot.subtitle=element_markdown(),
         strip.background=element_blank(),
-        strip.text=element_text(face="bold", size=rel(1)))+
+        strip.text=element_text(face="bold", size=rel(1)), text=element_text(family="Lato"))+
   labs(title="Deaths in Scotland from causes closely linked to alcohol don't seem to have risen in 2020",
        subtitle="Quarterly deaths from <span style='color:#FF4E86;'>liver disease</span> and <span style='color:#FF9E44;'>mental & behavioural disorders due to alcohol</span> in Scotland",
        caption="Data from ONS | Plot by @VictimOfMaths")
@@ -768,7 +769,7 @@ ggplot()+
   scale_y_continuous(name="Number of deaths", limits=c(0,NA))+
   theme_classic()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
-        plot.subtitle=element_markdown())+
+        plot.subtitle=element_markdown(), text=element_text(family="Lato"))+
   labs(title="Deaths linked to alcohol don't seem to have risen in Scotland in 2020",
        subtitle="Quarterly mortality rates from liver disease and mental & behavioural disorders due to alcohol<br>in Scotland in <span style='color:#FF4E86;'>2020</span>, compared to 2015-19",
        caption="Data from ONS | Plot by @VictimOfMaths")
@@ -791,7 +792,7 @@ ggplot()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
         plot.subtitle=element_markdown(),
         strip.background=element_blank(),
-        strip.text=element_text(face="bold", size=rel(1)))+
+        strip.text=element_text(face="bold", size=rel(1)), text=element_text(family="Lato"))+
   labs(title="Deaths linked to alcohol don't seem to have risen in Scotland in 2020",
        subtitle="Quarterly mortality rates from selected causes linked to alcohol<br>in Scotland in <span style='color:#FF4E86;'>2020</span>, compared to 2015-19",
        caption="Data from ONS | Plot by @VictimOfMaths")
@@ -800,13 +801,13 @@ dev.off()
 #############################################################
 #Comparable analysis for NI
 NIfile <- tempfile()
-source.NI <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2020Q3.xls"
+source.NI <- "https://www.nisra.gov.uk/system/files/statistics/Tables_2020Q4%20Final.xlsx"
 NIfile <- curl_download(url=source.NI, destfile=NIfile, quiet=FALSE, mode="wb")
 
-NIdata <- read_excel(NIfile, sheet="Table 1c", range="A45:J97", col_names=FALSE) %>% 
-  rename(year=`...1`, quarter=`...2`, AllCause=`...3`, Cancer=`...4`, IHD=`...5`,
-         Respiratory=`...6`, Suicide.broad=`...7`, Suicide=`...8`, Alcohol=`...9`,
-         Drugs=`...10`) %>%
+NIdata <- read_excel(NIfile, sheet="Table 1c", range="A43:K97", col_names=FALSE) %>% 
+  rename(year=`...1`, quarter=`...2`, AllCause=`...3`, Cancer=`...4`, COVID=`...5`,
+         IHD=`...6`, Respiratory=`...7`, Suicide.broad=`...8`, Suicide=`...9`,
+         Alcohol=`...10`, Drugs=`...11`) %>%
   fill(year) %>% 
   na.omit() %>% 
   mutate(quarter=case_when(
@@ -815,7 +816,7 @@ NIdata <- read_excel(NIfile, sheet="Table 1c", range="A45:J97", col_names=FALSE)
     quarter=="3rd" ~ "Q3",
     quarter=="4th" ~ "Q4"),
     index=c(1:nrow(.))) %>% 
-  gather(cause, deaths, c(3:10)) %>% 
+  gather(cause, deaths, c(3:11)) %>% 
   mutate(deaths=as.numeric(str_replace(deaths, "-", "")))
 
 #Time series by cause for deaths of despair
@@ -831,7 +832,7 @@ ggplot(subset(NIdata, cause %in% c("Alcohol", "Drugs", "Suicide")))+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
         plot.subtitle=element_markdown(),
         strip.background=element_blank(),
-        strip.text=element_text(face="bold", size=rel(1)))+
+        strip.text=element_text(face="bold", size=rel(1)), text=element_text(family="Lato"))+
   labs(title="Deaths in Northern Ireland from both alcohol and drugs have been rising for several years",
        subtitle="Quarterly <span style='color:#00468B;'>deaths from alcohol-specific causes</span>, <span style='color:#ED0000;'>drug-related deaths</span> and <span style='color:#42B540;'>suicides</span> in Northern Ireland",
        caption="Data from NISRA | Plot by @VictimOfMaths")
@@ -855,7 +856,7 @@ ggplot()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
         plot.subtitle=element_markdown(),
         strip.background=element_blank(),
-        strip.text=element_text(face="bold", size=rel(1)))+
+        strip.text=element_text(face="bold", size=rel(1)), text=element_text(family="Lato"))+
   labs(title="It's unclear whether Northern Ireland has seen a rise in 'deaths of despair' in 2020",
        subtitle="Quarterly mortality rates in Northern Ireland by cause in <span style='color:#FF4E86;'>2020</span>, compared to 2015-19",
        caption="Data from NISRA | Plot by @VictimOfMaths")
@@ -878,8 +879,8 @@ ggplot()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)),
         plot.subtitle=element_markdown(),
         strip.background=element_blank(),
-        strip.text=element_text(face="bold", size=rel(1)))+
-  labs(title="It's unclear whether Northern Ireland saw a rise in alcohol-specific deaths in 2020",
+        strip.text=element_text(face="bold", size=rel(1)), text=element_text(family="Lato"))+
+  labs(title="Alcohol-specific deaths in Northern Ireland rose in the latter half of 2020",
        subtitle="Quarterly alcohol-specific mortality rates in Northern Ireland in <span style='color:#FF4E86;'>2020</span>, compared to 2015-19",
        caption="Data from NISRA | Plot by @VictimOfMaths")
 dev.off()
