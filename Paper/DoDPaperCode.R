@@ -1450,6 +1450,38 @@ APCcurve %>%
        
 dev.off()
 
+agg_png("Outputs/DoDCombinedModalAgesAlternate.png", units="in", width=8, height=9, res=800)
+APCcurve %>% 
+  filter(!Cause %in% c("Total", "DoD")) %>% 
+  ggplot(aes(x=Year, y=mode))+
+  geom_point(aes(colour=Country, size=moderate*100000), alpha=0.7)+
+  geom_point(shape=21, colour="Black", aes(size=moderate*100000))+
+  theme_classic()+
+  geom_vline(xintercept = seq(2000, 2020, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
+  geom_hline(yintercept = seq(20, 75, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
+  geom_abline(intercept = seq(-1995, -1860, by=5), slope = 1, linetype="dashed", color="grey30", size=.10, alpha = 0.8)+
+  geom_text(data = ann_text,
+            aes(label = label), size=3, angle=45, alpha=0.7, family=font)+
+  annotate("text", x = 2022, y = 25, label = "Cohort", size=3.2, angle = 45, color="black",
+           family=font)+
+  scale_colour_paletteer_d("awtools::mpalette")+
+  scale_size(name="Deaths per 100,000")+
+  scale_x_continuous(name="Period", limits=c(1999, 2024))+
+  scale_y_continuous(name="Age", breaks=c(seq(20,90, by=10)))+
+  facet_grid(Sex ~ Cause)+
+  coord_equal()+
+  theme(panel.spacing=unit(2, "lines"), strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)), 
+        plot.title=element_text(face="bold", size=rel(1.5)),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+        text=element_text(family=font), plot.title.position="plot",
+        plot.caption.position = "plot")+
+  guides(colour=guide_legend(order=1), size=guide_legend(order=2))+
+  labs(title="There is a strong cohort effect in 'Deaths of despair'", 
+       subtitle="APC curvature plot showing modal age of death by cause")
+
+dev.off()
+
 #US APC curvature plot based on raw data
 USAPCcurve <- Combined %>%
   filter(Country=="USA") %>% 
@@ -1559,3 +1591,5 @@ ggplot(cohort %>% filter(Cause=="Suicide"),
         plot.caption.position = "plot")+
   labs(title="Cohort effects in deaths by suicide")
 dev.off()
+
+
