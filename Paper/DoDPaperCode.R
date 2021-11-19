@@ -1430,7 +1430,7 @@ APCcurve <- Combined %>%
 
 ann_text <- data.frame(mode_mx=seq(29, 79, by=5), Year=rep(2022.5, times=11), label=as.character(seq(1995, 1945, by=-5)))
 
-agg_png("Outputs/DoDCombinedModalAges2.png", units="in", width=10, height=9, res=800)
+agg_png("Outputs/DoDCombinedModalAges.png", units="in", width=10, height=9, res=800)
 APCcurve %>% 
   filter(!Cause %in% c("Total", "DoD")) %>% 
   ggplot(aes(x=Year, y=mode_mx))+
@@ -1466,9 +1466,9 @@ dev.off()
 agg_png("Outputs/DoDCombinedModalAgesAlternate.png", units="in", width=8, height=9, res=800)
 APCcurve %>% 
   filter(!Cause %in% c("Total", "DoD")) %>% 
-  ggplot(aes(x=Year, y=mode))+
-  geom_point(aes(colour=Country, size=moderate*100000), alpha=0.7)+
-  geom_point(shape=21, colour="Black", aes(size=moderate*100000))+
+  ggplot(aes(x=Year, y=mode_mx))+
+  geom_point(aes(colour=Country, size=moderate_mx*100000), alpha=0.7)+
+  geom_point(shape=21, colour="Black", aes(size=moderate_mx*100000))+
   theme_classic()+
   geom_vline(xintercept = seq(2000, 2020, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
   geom_hline(yintercept = seq(20, 75, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
@@ -1499,20 +1499,20 @@ dev.off()
 USAPCcurve <- Combined %>%
   filter(Country=="USA") %>% 
   group_by(Year, Cause, Sex) %>%
-  summarise(mean=weighted.mean(Age, Dx), 
-            meanDx=Dx[which(Age==round(mean, digits=0))] ,
-            maxDx=max(Dx), 
-            mode=Age[which(Dx==maxDx)][1], 
-            moderate=mx[which(Age==mode)],
-            spread=sd(Dx)) %>% 
+  summarise(maxDx=max(Dx_smt1D),
+            maxmx=max(mx_smt1D),
+            mode=Age[which(Dx_smt1D==maxDx)][1], 
+            mode_mx=Age[which(mx_smt1D==maxmx)][1], 
+            moderate=mx_smt1D[which(Age==mode)],
+            moderate_mx=mx_smt1D[which(Age==mode_mx)]) %>% 
   ungroup()
 
 agg_png("Outputs/DoDUSAModalAges.png", units="in", width=8, height=8, res=500)
 USAPCcurve %>% 
   filter(!Cause %in% c("Total", "Cancer", "Metabolic", "DoD")) %>% 
-  ggplot(aes(x=Year, y=mode))+
-  geom_point(aes(colour=Cause, size=moderate), alpha=0.7)+
-  geom_point(shape=21, colour="Black", aes(size=moderate))+
+  ggplot(aes(x=Year, y=mode_mx))+
+  geom_point(aes(colour=Cause, size=moderate_mx*100000), alpha=0.7)+
+  geom_point(shape=21, colour="Black", aes(size=moderate_mx*100000))+
   theme_classic()+
   geom_vline(xintercept = seq(2000, 2020, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
   geom_hline(yintercept = seq(20, 75, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
