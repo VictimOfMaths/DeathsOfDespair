@@ -1262,6 +1262,7 @@ rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "scotdata.wide"
 
 #############
 #Merge everything together
+#Note that mx_smt1D is already in per 100,000 units
 Combined <- USsmoothed %>% 
   mutate(Country="USA") %>% 
   bind_rows(UKsmoothed %>% rename(Ex=pop) %>% mutate(Sex=if_else(Sex==1, "Male", "Female"))) %>% 
@@ -1273,9 +1274,9 @@ Combined <- Combined %>%
   group_by(Age, Sex, Year, Country) %>% 
   summarise(Dx=sum(Dx, na.rm=TRUE), Ex=unique(Ex), Dx_smt1D=sum(Dx_smt1D)) %>% 
   ungroup() %>% 
-  mutate(mx_smt1D=Dx_smt1D*100000/Ex,
+  mutate(mx_smt1D=Dx_smt1D/Ex,
          Cause="DoD") %>% 
-  bind_rows(Combined)
+  bind_rows(Combined) 
     
 agg_png("Outputs/DoDCombined1DMale.png", units="in", width=8, height=13, res=500)
 Combined %>% 
@@ -1406,23 +1407,35 @@ dev.off()
 #############################
 #APC curvature plots
 
+#Start with a diagnostic plot showing mortality rates by age
+Combined %>% filter(Cause %in% c("Alcohol", "Drugs", "Suicide") & Sex=="Male") %>% 
+  ggplot(aes(x=Age, y=mx_smt1D, colour=Year, group=Year))+
+  geom_line()+
+  scale_y_continuous(name="Deaths per 100,000")+
+  scale_colour_paletteer_c("scico::cork")+
+  facet_grid(Cause ~ Country)+
+  theme_custom()
+
 #Pick out modal age of death for each cause, in each country in each year
 APCcurve <- Combined %>%
   filter(Age<=85) %>% 
   group_by(Year, Cause, Country, Sex) %>%
-  summarise(maxDx=max(Dx_smt1D), 
+  summarise(maxDx=max(Dx_smt1D),
+            maxmx=max(mx_smt1D),
             mode=Age[which(Dx_smt1D==maxDx)][1], 
-            moderate=mx_smt1D[which(Age==mode)]) %>% 
+            mode_mx=Age[which(mx_smt1D==maxmx)][1], 
+            moderate=mx_smt1D[which(Age==mode)],
+            moderate_mx=mx_smt1D[which(Age==mode_mx)]) %>% 
   ungroup()
 
-ann_text <- data.frame(mode=seq(29, 79, by=5), Year=rep(2022.5, times=11), label=as.character(seq(1995, 1945, by=-5)))
+ann_text <- data.frame(mode_mx=seq(29, 79, by=5), Year=rep(2022.5, times=11), label=as.character(seq(1995, 1945, by=-5)))
 
-agg_png("Outputs/DoDCombinedModalAges.png", units="in", width=10, height=9, res=800)
+agg_png("Outputs/DoDCombinedModalAges2.png", units="in", width=10, height=9, res=800)
 APCcurve %>% 
   filter(!Cause %in% c("Total", "DoD")) %>% 
-  ggplot(aes(x=Year, y=mode))+
-  geom_point(aes(colour=Cause, size=moderate*100000), alpha=0.7)+
-  geom_point(shape=21, colour="Black", aes(size=moderate*100000))+
+  ggplot(aes(x=Year, y=mode_mx))+
+  geom_point(aes(colour=Cause, size=moderate_mx*100000), alpha=0.7)+
+  geom_point(shape=21, colour="Black", aes(size=moderate_mx*100000))+
   theme_classic()+
   geom_vline(xintercept = seq(2000, 2020, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
   geom_hline(yintercept = seq(20, 75, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
