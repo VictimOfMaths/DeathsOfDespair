@@ -13,6 +13,7 @@ library(ragg)
 library(extrafont)
 library(RcppRoll)
 library(pdftools)
+library(gt)
 
 #Set common font for all plots
 font <- "Lato"
@@ -35,6 +36,37 @@ password <- ""
 
 #########################################################
 #Start by pulling together all the data and tidying it up
+
+#Get 2019 populations for the UK nations, as not in HMD yet
+#Thanks to Luyin Zhang for the code to tidy this data up
+ukpop <- tempfile()
+ukpopurl <- "https://www.ons.gov.uk/file?uri=%2fpeoplepopulationandcommunity%2fpopulationandmigration%2fpopulationestimates%2fdatasets%2fpopulationestimatesforukenglandandwalesscotlandandnorthernireland%2fmid2019april2020localauthoritydistrictcodes/ukmidyearestimates20192020ladcodes.xls"
+ukpop <- curl_download(url=ukpopurl, destfile=ukpop, quiet=FALSE, mode="wb")
+
+rawpop <- list()
+rawpop$male <- read_excel(ukpop, sheet = 'MYE2 - Males', skip = 4)
+rawpop$female <- read_excel(ukpop, sheet = 'MYE2 - Females', skip = 4)
+
+#Clean data
+cleanedpop <- rawpop %>% bind_rows(.id='sex') %>% 
+  filter(Name %in% c('ENGLAND AND WALES', 'SCOTLAND', 'NORTHERN IRELAND') ) %>%
+  pivot_longer(
+    cols = c(`0`:`90+`),
+    names_to = 'age',
+    values_to = 'pop'
+  ) %>% 
+  mutate(
+    country = case_when(
+      Name=='ENGLAND AND WALES' ~ 1,
+      Name=='SCOTLAND' ~ 2,
+      Name=='NORTHERN IRELAND' ~ 3
+    ) %>% factor(labels = c('ENW','SCO','NIR')),
+    Sex = ifelse(sex=='male',1,2),
+    Age = parse_number(age)
+  ) %>%
+  select(country, Sex, Age, pop) %>%
+  arrange(country, Sex, Age, pop)
+  
 
 #################
 #England & Wales#
@@ -138,7 +170,11 @@ ewpop <- readHMDweb(CNTRY="GBRTENW", "Exposures_1x1", username, password) %>%
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
   spread(Year, Ex) %>% 
-  mutate(Sex=if_else(Sex=="Male", 1, 2))
+  mutate(Sex=if_else(Sex=="Male", 1, 2)) %>% 
+  #Add in 2019 data from ONS
+  merge(cleanedpop %>% filter(country=="ENW") %>% 
+          select(-country), all.x=TRUE) %>% 
+  rename("2019"="pop")
 
 #Group populations to match deaths age groups
 ewpop.grouped <- ewpop %>% 
@@ -148,7 +184,7 @@ ewpop.grouped <- ewpop %>%
     Age<55 ~ 50, Age<60 ~ 55, Age<65 ~ 60, Age<70 ~ 65, Age<75 ~ 70, Age<80 ~ 75,
     Age<85 ~ 80, TRUE ~ 85)) %>% 
   group_by(Sex, agestart) %>%
-  summarise(across(`2001`:`2018`, sum)) %>% 
+  summarise(across(`2001`:`2019`, sum, na.rm=TRUE)) %>% 
   ungroup()
 
 ##########
@@ -382,7 +418,11 @@ scotpop <- readHMDweb(CNTRY="GBR_SCO", "Exposures_1x1", username, password) %>%
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
   spread(Year, Ex) %>% 
-  mutate(Sex=if_else(Sex=="Male", 1, 2))
+  mutate(Sex=if_else(Sex=="Male", 1, 2)) %>% 
+  #Add in 2019 data from ONS
+  merge(cleanedpop %>% filter(country=="SCO") %>% 
+        select(-country), all.x=TRUE) %>% 
+  rename("2019"="pop")
 
 #Group populations to match deaths age groups
 scotpop.grouped <- scotpop %>% 
@@ -392,11 +432,12 @@ scotpop.grouped <- scotpop %>%
     Age<55 ~ 50, Age<60 ~ 55, Age<65 ~ 60, Age<70 ~ 65, Age<75 ~ 70, Age<80 ~ 75,
     Age<85 ~ 80, TRUE ~ 85)) %>% 
   group_by(Sex, agestart) %>%
-  summarise(across(`2001`:`2018`, sum)) %>% 
+  summarise(across(`2001`:`2019`, sum, na.rm=TRUE)) %>% 
   ungroup()
 
 rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "scotdata.wide", "scotpop", 
-                        "scotpop.grouped", "username", "password", "font", "theme_custom")))
+                        "scotpop.grouped", "username", "password", "font", "theme_custom",
+                        "cleanedpop")))
 
 ##################
 #Northern Ireland#
@@ -728,7 +769,11 @@ nipop <- readHMDweb(CNTRY="GBR_NIR", "Exposures_1x1", username, password) %>%
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
   spread(Year, Ex) %>% 
-  mutate(Sex=if_else(Sex=="Male", 1, 2))
+  mutate(Sex=if_else(Sex=="Male", 1, 2)) %>% 
+  #Add in 2019 data from ONS
+  merge(cleanedpop %>% filter(country=="NIR") %>% 
+          select(-country), all.x=TRUE) %>% 
+  rename("2019"="pop")
 
 #Group populations to match deaths age groups
 nipop.grouped <- nipop %>% 
@@ -738,7 +783,7 @@ nipop.grouped <- nipop %>%
     Age<55 ~ 50, Age<60 ~ 55, Age<65 ~ 60, Age<70 ~ 65, Age<75 ~ 70, Age<80 ~ 75,
     Age<85 ~ 80, TRUE ~ 85)) %>% 
   group_by(Sex, agestart) %>%
-  summarise(across(`2004`:`2018`, sum)) %>% 
+  summarise(across(`2004`:`2019`, sum, na.rm=TRUE)) %>% 
   ungroup()
 
 rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "scotdata.wide", "scotpop", 
@@ -747,22 +792,22 @@ rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "scotdata.wide"
 
 #Combine EW, Scotland & NI
 UKdata <- ewdata.wide %>% 
-  gather(Year, Dx, c(5:22)) %>% 
+  gather(Year, Dx, c(5:23)) %>% 
   select(Cause, agestart, Sex, Year, Dx) %>% 
   mutate(Country="England & Wales") %>%
-  merge(ewpop.grouped %>% gather(Year, pop, c(3:20))) %>% 
+  merge(ewpop.grouped %>% gather(Year, pop, c(3:21))) %>% 
   mutate(mx=Dx*100000/pop) %>% 
   bind_rows(scotdata.wide %>% 
-              gather(Year, Dx, c(5:22)) %>% 
+              gather(Year, Dx, c(5:23)) %>% 
               select(Cause, agestart, Sex, Year, Dx) %>% 
               mutate(Country="Scotland") %>%
-              merge(scotpop.grouped %>% gather(Year, pop, c(3:20))) %>% 
+              merge(scotpop.grouped %>% gather(Year, pop, c(3:21))) %>% 
               mutate(mx=Dx*100000/pop)) %>% 
   bind_rows(nidata.wide %>% 
               gather(Year, Dx, c(5:20)) %>% 
               select(Cause, agestart, Sex, Year, Dx) %>% 
               mutate(Country="Northern Ireland") %>%
-              merge(nipop.grouped %>% gather(Year, pop, c(3:17))) %>% 
+              merge(nipop.grouped %>% gather(Year, pop, c(3:18))) %>% 
               mutate(mx=Dx*100000/pop))
 
 #Plot raw mx
@@ -778,8 +823,8 @@ UKdata %>%
   theme_custom()+
   theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
   labs(title="Raw mortality rates from 'Deaths of Despair' in UK males",
-       subtitle="Lexis surfaces showing mortality rates in 5-year age bands between 2001-2018*",
-       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n\n*Northern Irish data from 2004-2018 only")
+       subtitle="Lexis surfaces showing mortality rates in 5-year age bands between 2001-2019*",
+       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n\n*Northern Irish data from 2004-2019 only")
 
 dev.off()
 
@@ -795,8 +840,8 @@ UKdata %>%
   theme_custom()+  
   theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
   labs(title="Raw mortality rates from 'Deaths of Despair' in UK females",
-       subtitle="Lexis surfaces showing mortality rates in 5-year age bands between 2001-2018*",
-       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n\n*Northern Irish data from 2004-2018 only")
+       subtitle="Lexis surfaces showing mortality rates in 5-year age bands between 2001-2019*",
+       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n\n*Northern Irish data from 2004-2019 only")
 
 dev.off()
 
@@ -823,7 +868,7 @@ mx_smoothed1D <- data.frame(Country=character(), Cause=character(), Sex=integer(
 for(i in c("England & Wales", "Scotland")){
   for(j in c("Alcohol", "Drugs", "Suicide", "Total")){
     for(k in 1:2){
-      for(l in 2001:2018){
+      for(l in 2001:2019){
         y <- z %>% filter(Country==i & Cause==j & Sex==k) %>% 
           select(-c(agestart, Sex, Country, Cause, Sex)) %>% 
           select(c(l-2000)) %>% 
@@ -853,7 +898,7 @@ for(i in c("England & Wales", "Scotland")){
 for(i in c("Northern Ireland")){
   for(j in c("Alcohol", "Drugs", "Suicide", "Total")){
     for(k in 1:2){
-      for(l in 2004:2018){
+      for(l in 2004:2019){
         y <- z %>% filter(Country==i & Cause==j & Sex==k) %>% 
           select(-c(agestart, Sex, Country, Cause, Sex)) %>% 
           select(c(l-2000)) %>% 
@@ -881,9 +926,9 @@ for(i in c("Northern Ireland")){
 }
 
 UKsmoothed <- mx_smoothed1D %>% 
-  merge(ewpop %>% gather(Year, pop.ew, c(3:20))) %>% 
-  merge(scotpop %>% gather(Year, pop.s, c(3:20))) %>% 
-  merge(nipop %>% gather(Year, pop.ni, c(3:17)), all.x=TRUE) %>% 
+  merge(ewpop %>% gather(Year, pop.ew, c(3:21))) %>% 
+  merge(scotpop %>% gather(Year, pop.s, c(3:21))) %>% 
+  merge(nipop %>% gather(Year, pop.ni, c(3:18)), all.x=TRUE) %>% 
   mutate(pop=case_when(
     Country=="Scotland" ~ pop.s, 
     Country=="England & Wales" ~ pop.ew,
@@ -905,8 +950,8 @@ UKsmoothed %>%
         axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
   coord_equal()+
   labs(title="Smoothed mortality rates from 'Deaths of Despair'\nin UK males",
-       subtitle="Lexis surfaces showing mortality rates by age between 2001-2018*",
-       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n\n*Northern Irish data from 2004-2018 only")
+       subtitle="Lexis surfaces showing mortality rates by age between 2001-2019*",
+       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n\n*Northern Irish data from 2004-2019 only")
 
 dev.off()
 
@@ -924,8 +969,8 @@ UKsmoothed %>%
         axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
   coord_equal()+
   labs(title="Smoothed mortality rates from 'Deaths of Despair'\nin UK females",
-       subtitle="Lexis surfaces showing mortality rates by age between 2001-2018*",
-       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n\n*Northern Irish data from 2004-2018 only")
+       subtitle="Lexis surfaces showing mortality rates by age between 2001-2019*",
+       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n\n*Northern Irish data from 2004-2019 only")
 
 dev.off()
 
@@ -1313,28 +1358,37 @@ Combined %>%
 dev.off()
 
 #Compress to age groups of interest
+#Age-standardising within each age-group to European Standard Population
 Combined_short <- Combined %>% 
+  filter(Year>2000) %>% 
   mutate(ageband=case_when(
     Age<35 ~ "<35",
     Age<45 ~ "35-44",
     Age<55 ~ "45-54",
     Age<65 ~ "55-64",
-    TRUE ~ "65+")) %>% 
+    TRUE ~ "65+"),
+    stdpop=case_when(
+      Age<15 ~ 5500/5, Age<20 ~ 5500/5, Age<25 ~ 6000/5, Age<30 ~ 6000/5, Age<35 ~ 6500/5,
+      Age<40 ~ 7000/5, Age<45 ~ 7000/5, Age<50 ~ 7000/5, Age<55 ~ 7000/5, Age<60 ~ 6500/5,
+      Age<65 ~ 6000/5, Age<70 ~ 5500/5, Age<75 ~ 5000/5, Age<80 ~ 4000/5, Age<85 ~ 2500/5,
+      Age<90 ~ 1500/5, TRUE ~ 1000
+    )) %>% 
   group_by(ageband, Country, Cause, Sex, Year) %>% 
-  summarise(Dx_smt1D=sum(Dx_smt1D), Ex=sum(Ex)) %>% 
+  summarise(Dx_smt1D=sum(Dx_smt1D), Ex=sum(Ex), mx_std=weighted.mean(mx_smt1D, stdpop)*100000) %>% 
   ungroup() %>% 
   mutate(mx_smt1D=Dx_smt1D*100000/Ex) %>% 
   #calculate 3-year rolling averages
   group_by(ageband, Country, Cause, Sex) %>% 
   arrange(Year) %>% 
-  mutate(mx_smt1D_roll=roll_mean(mx_smt1D, 3, align="center", fill=NA))
+  mutate(mx_smt1D_roll=roll_mean(mx_smt1D, 3, align="center", fill=NA),
+         mx_std_roll=roll_mean(mx_std, 3, align="center", fill=NA))
 
 agg_png("Outputs/DoDCombinedTotal.png", units="in", width=10, height=6, res=500)
 Combined_short %>% 
   filter(Cause=="Total" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
   ggplot()+
-  geom_line(aes(x=Year, y=mx_smt1D_roll, colour=Country))+
-  scale_y_continuous(name="Deaths per 100,000", limits=c(0,NA))+
+  geom_line(aes(x=Year, y=mx_std_roll, colour=Country))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
   scale_colour_paletteer_d("awtools::mpalette", name="")+
   facet_wrap(Sex~ageband, scales="free_y")+
   theme_custom()+
@@ -1348,8 +1402,8 @@ agg_png("Outputs/DoDCombinedDoD.png", units="in", width=10, height=6, res=500)
 Combined_short %>% 
   filter(Cause=="DoD" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
   ggplot()+
-  geom_line(aes(x=Year, y=mx_smt1D_roll, colour=Country))+
-  scale_y_continuous(name="Deaths per 100,000", limits=c(0,NA))+
+  geom_line(aes(x=Year, y=mx_std_roll, colour=Country))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
   scale_colour_paletteer_d("awtools::mpalette", name="")+
   facet_grid(Sex~ageband)+
   theme_custom()+
@@ -1363,8 +1417,8 @@ agg_png("Outputs/DoDCombinedAlcohol.png", units="in", width=10, height=6, res=50
 Combined_short %>% 
   filter(Cause=="Alcohol" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
   ggplot()+
-  geom_line(aes(x=Year, y=mx_smt1D_roll, colour=Country))+
-  scale_y_continuous(name="Deaths per 100,000", limits=c(0,NA))+
+  geom_line(aes(x=Year, y=mx_std_roll, colour=Country))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
   scale_colour_paletteer_d("awtools::mpalette", name="")+
   facet_grid(Sex~ageband)+
   theme_custom()+
@@ -1378,8 +1432,8 @@ agg_png("Outputs/DoDCombinedDrugs.png", units="in", width=10, height=6, res=500)
 Combined_short %>% 
   filter(Cause=="Drugs" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
   ggplot()+
-  geom_line(aes(x=Year, y=mx_smt1D_roll, colour=Country))+
-  scale_y_continuous(name="Deaths per 100,000", limits=c(0,NA))+
+  geom_line(aes(x=Year, y=mx_std_roll, colour=Country))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
   scale_colour_paletteer_d("awtools::mpalette", name="")+
   facet_grid(Sex~ageband)+
   theme_custom()+
@@ -1393,8 +1447,8 @@ agg_png("Outputs/DoDCombinedSuicide.png", units="in", width=10, height=6, res=50
 Combined_short %>% 
   filter(Cause=="Suicide" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
   ggplot()+
-  geom_line(aes(x=Year, y=mx_smt1D_roll, colour=Country))+
-  scale_y_continuous(name="Deaths per 100,000", limits=c(0,NA))+
+  geom_line(aes(x=Year, y=mx_std_roll, colour=Country))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
   scale_colour_paletteer_d("awtools::mpalette", name="")+
   facet_grid(Sex~ageband)+
   theme_custom()+
@@ -1403,6 +1457,144 @@ Combined_short %>%
   labs(title="Midlife suicide mortality in Canada, the UK and the US 2001-2019")
 
 dev.off()
+
+###########################
+#Generate tables of mortality rates
+tabledata_f <- Combined_short %>% 
+  ungroup() %>% 
+  select(ageband, Country, Sex, Year, Cause, mx_std) %>% 
+  mutate(mx_std=round(mx_std, digits=1),
+         Cause=case_when(
+           Cause=="DoD" ~ "Combined 'Deaths of Despair'",
+           Cause=="Total" ~ "All-Cause",
+           TRUE ~ Cause)) %>% 
+  filter(Year %in% c(2001, 2010, 2019) & ageband %in% c("35-44", "45-54", "55-64") &
+           Sex=="Female") %>% 
+  select(-Sex) %>% 
+  arrange(Country, Year) %>% 
+  pivot_wider(names_from=c(Country, Year), values_from=c(mx_std)) %>% 
+  mutate(Cause=factor(Cause, levels=c("All-Cause", "Combined 'Deaths of Despair'",
+                                      "Alcohol", "Drugs", "Suicide"))) %>% 
+  group_by(Cause)
+
+tabledata_m <- Combined_short %>% 
+  ungroup() %>% 
+  select(ageband, Country, Sex, Year, Cause, mx_std) %>% 
+  mutate(mx_std=round(mx_std, digits=1),
+         Cause=case_when(
+           Cause=="DoD" ~ "Combined 'Deaths of Despair'",
+           Cause=="Total" ~ "All-Cause",
+           TRUE ~ Cause)) %>% 
+  filter(Year %in% c(2001, 2010, 2019) & ageband %in% c("35-44", "45-54", "55-64") &
+           Sex=="Male") %>% 
+  select(-Sex) %>% 
+  arrange(Country, Year) %>% 
+  pivot_wider(names_from=c(Country, Year), values_from=c(mx_std)) %>% 
+  mutate(Cause=factor(Cause, levels=c("All-Cause", "Combined 'Deaths of Despair'",
+                                      "Alcohol", "Drugs", "Suicide"))) %>% 
+  group_by(Cause)
+
+table_f <- gt(tabledata_f, rowname_col = "ageband") %>% 
+  tab_header(title=md("**Female mortality rates for 'Deaths of Despair'**"),
+             subtitle="Age-standardised death rates among women by year, country, cause, sex and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  tab_spanner(label="Canada", columns=c(Canada_2001, Canada_2010,
+                                                Canada_2019)) %>% 
+ tab_spanner(label="England & Wales", columns=c(`England & Wales_2001`, 
+                                                       `England & Wales_2010`,
+                                                       `England & Wales_2019`)) %>% 
+  tab_spanner(label="Northern Ireland", columns=c(`Northern Ireland_2010`,
+                                                        `Northern Ireland_2019`)) %>% 
+  tab_spanner(label="Scotland", columns=c(Scotland_2001, Scotland_2010,
+                                                Scotland_2019)) %>% 
+  tab_spanner(label="USA", columns=c(USA_2001, USA_2010,
+                                           USA_2019)) %>% 
+  cols_label(Canada_2001="2001",
+             Canada_2010="2010",
+             Canada_2019="2019",
+             `England & Wales_2001`="2001",
+             `England & Wales_2010`="2010",
+             `England & Wales_2019`="2019",
+             `Northern Ireland_2010`="2010",
+             `Northern Ireland_2019`="2019",
+             Scotland_2001="2001",
+             Scotland_2010="2010",
+             Scotland_2019="2019",        
+             USA_2001="2001",
+             USA_2010="2010",
+             USA_2019="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts())) %>% 
+  data_color(columns=c(Canada_2001, Canada_2010, Canada_2019), colors=c("#017a4a"), alpha=0.1,
+             apply_to=c("fill")) %>% 
+  data_color(columns=c(`England & Wales_2001`, `England & Wales_2010`, `England & Wales_2019`), 
+             colors=c("#FFCE4E"), alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(`Northern Ireland_2010`, `Northern Ireland_2019`), 
+             colors=c("#3d98d3"), alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(Scotland_2001, Scotland_2010, Scotland_2019), colors=c("#ff363c"), alpha=0.1,
+             apply_to=c("fill")) %>% 
+  data_color(columns=c(USA_2001, USA_2010, USA_2019), colors=c("#7559a2"), alpha=0.1,
+             apply_to=c("fill")) %>% 
+  data_color(columns=c(Canada_2001, Canada_2010, Canada_2019, `England & Wales_2001`, 
+                       `England & Wales_2010`, `England & Wales_2019`, `Northern Ireland_2010`, 
+                       `Northern Ireland_2019`, Scotland_2001, Scotland_2010, Scotland_2019,
+                       USA_2001, USA_2010, USA_2019), colors=c("Black"), 
+             apply_to=c("text"))
+
+table_m <- gt(tabledata_m, rowname_col = "ageband") %>% 
+  tab_header(title=md("**Male mortality rates for 'Deaths of Despair'**"),
+             subtitle="Age-standardised death rates among men by year, country, cause, and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  tab_spanner(label="Canada", columns=c(Canada_2001, Canada_2010,
+                                            Canada_2019)) %>% 
+  tab_spanner(label="England & Wales", columns=c(`England & Wales_2001`, 
+                                                     `England & Wales_2010`,
+                                                     `England & Wales_2019`)) %>% 
+  tab_spanner(label="Northern Ireland", columns=c(`Northern Ireland_2010`,
+                                                      `Northern Ireland_2019`)) %>% 
+  tab_spanner(label="Scotland", columns=c(Scotland_2001, Scotland_2010,
+                                              Scotland_2019)) %>% 
+  tab_spanner(label="USA", columns=c(USA_2001, USA_2010,
+                                         USA_2019)) %>% 
+  cols_label(Canada_2001="2001",
+             Canada_2010="2010",
+             Canada_2019="2019",
+             `England & Wales_2001`="2001",
+             `England & Wales_2010`="2010",
+             `England & Wales_2019`="2019",
+             `Northern Ireland_2010`="2010",
+             `Northern Ireland_2019`="2019",  
+             Scotland_2001="2001",
+             Scotland_2010="2010",
+             Scotland_2019="2019",
+             USA_2001="2001",
+             USA_2010="2010",
+             USA_2019="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts()))%>% 
+  data_color(columns=c(Canada_2001, Canada_2010, Canada_2019), colors=c("#017a4a"), alpha=0.1,
+             apply_to=c("fill")) %>% 
+  data_color(columns=c(`England & Wales_2001`, `England & Wales_2010`, `England & Wales_2019`), 
+             colors=c("#FFCE4E"), alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(`Northern Ireland_2010`, `Northern Ireland_2019`), 
+             colors=c("#3d98d3"), alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(Scotland_2001, Scotland_2010, Scotland_2019), colors=c("#ff363c"), alpha=0.1,
+             apply_to=c("fill")) %>% 
+  data_color(columns=c(USA_2001, USA_2010, USA_2019), colors=c("#7559a2"), alpha=0.1,
+             apply_to=c("fill")) %>% 
+  data_color(columns=c(Canada_2001, Canada_2010, Canada_2019, `England & Wales_2001`, 
+                       `England & Wales_2010`, `England & Wales_2019`, `Northern Ireland_2010`, 
+                       `Northern Ireland_2019`, Scotland_2001, Scotland_2010, Scotland_2019,
+                       USA_2001, USA_2010, USA_2019), colors=c("Black"), 
+             apply_to=c("text"))
+
+
+gtsave(table_f, "Outputs/DoDTableFemale.png")
+gtsave(table_m, "Outputs/DoDTableMale.png")
 
 #############################
 #APC curvature plots
@@ -1418,7 +1610,7 @@ Combined %>% filter(Cause %in% c("Alcohol", "Drugs", "Suicide") & Sex=="Male") %
 
 #Pick out modal age of death for each cause, in each country in each year
 APCcurve <- Combined %>%
-  filter(Age<=85) %>% 
+  filter(Age<=85 & Age>=20) %>% 
   group_by(Year, Cause, Country, Sex) %>%
   summarise(maxDx=max(Dx_smt1D),
             maxmx=max(mx_smt1D),
@@ -1428,12 +1620,15 @@ APCcurve <- Combined %>%
             moderate_mx=mx_smt1D[which(Age==mode_mx)]) %>% 
   ungroup()
 
-ann_text <- data.frame(mode_mx=seq(29, 79, by=5), Year=rep(2022.5, times=11), label=as.character(seq(1995, 1945, by=-5)))
+ann_text <- data.frame(mode_mx=seq(29, 84, by=5), Year=rep(2022.5, times=12), 
+                       label=as.character(seq(1995, 1940, by=-5)))
 
 agg_png("Outputs/DoDCombinedModalAges.png", units="in", width=10, height=9, res=800)
 APCcurve %>% 
   filter(!Cause %in% c("Total", "DoD")) %>% 
   ggplot(aes(x=Year, y=mode_mx))+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=-Inf, ymax=34), fill="Grey80", colour=NA)+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=65, ymax=Inf), fill="Grey80", colour=NA)+
   geom_point(aes(colour=Cause, size=moderate_mx*100000), alpha=0.7)+
   geom_point(shape=21, colour="Black", aes(size=moderate_mx*100000))+
   theme_classic()+
@@ -1442,13 +1637,13 @@ APCcurve %>%
   geom_abline(intercept = seq(-1995, -1860, by=5), slope = 1, linetype="dashed", color="grey30", size=.10, alpha = 0.8)+
   geom_text(data = ann_text,
             aes(label = label), size=3, angle=45, alpha=0.7, family=font)+
-  annotate("text", x = 2022, y = 25, label = "Cohort", size=3.2, angle = 45, color="black",
+  annotate("text", x = 2021, y = 22, label = "Cohort", size=3.2, angle = 45, color="black",
            family=font)+
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="Cause", 
                       labels=c("Alcohol", "Drugs", "Suicide"))+
   scale_size(name="Deaths per 100,000")+
-  scale_x_continuous(name="Period", limits=c(1999, 2024))+
-  scale_y_continuous(name="Age", breaks=c(seq(20,90, by=10)))+
+  scale_x_continuous(name="Period", limits=c(1999, 2024), breaks=c(2000, 2005, 2010, 2015, 2020))+
+  scale_y_continuous(name="Age", breaks=c(seq(20,90, by=10)), limits=c(18, 86))+
   facet_grid(Sex ~ Country)+
   coord_equal()+
   theme(panel.spacing=unit(2, "lines"), strip.background=element_blank(),
@@ -1458,8 +1653,9 @@ APCcurve %>%
         text=element_text(family=font), plot.title.position="plot",
         plot.caption.position = "plot")+
   guides(colour=guide_legend(order=1), size=guide_legend(order=2))+
-  labs(title="There is a strong cohort effect in 'Deaths of despair'", 
-       subtitle="APC curvature plot showing modal age of death by cause")
+  labs(title="Temporal patterns in the age with the highest death rates", 
+       subtitle="APC curvature plot for 'Deaths of Despair'",
+       caption="Circles represent the age within each year with the highest mortality rate for each of the three causes, restricted to ages 20-85, sized according to the mortality rate.")
        
 dev.off()
 
@@ -1467,6 +1663,8 @@ agg_png("Outputs/DoDCombinedModalAgesAlternate.png", units="in", width=8, height
 APCcurve %>% 
   filter(!Cause %in% c("Total", "DoD")) %>% 
   ggplot(aes(x=Year, y=mode_mx))+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=-Inf, ymax=34), fill="Grey80", colour=NA)+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=65, ymax=Inf), fill="Grey80", colour=NA)+
   geom_point(aes(colour=Country, size=moderate_mx*100000), alpha=0.7)+
   geom_point(shape=21, colour="Black", aes(size=moderate_mx*100000))+
   theme_classic()+
@@ -1479,7 +1677,7 @@ APCcurve %>%
            family=font)+
   scale_colour_paletteer_d("awtools::mpalette")+
   scale_size(name="Deaths per 100,000")+
-  scale_x_continuous(name="Period", limits=c(1999, 2024))+
+  scale_x_continuous(name="Period", limits=c(1999, 2024), breaks=c(2000, 2005, 2010, 2015, 2020))+
   scale_y_continuous(name="Age", breaks=c(seq(20,90, by=10)))+
   facet_grid(Sex ~ Cause)+
   coord_equal()+
@@ -1490,8 +1688,9 @@ APCcurve %>%
         text=element_text(family=font), plot.title.position="plot",
         plot.caption.position = "plot")+
   guides(colour=guide_legend(order=1), size=guide_legend(order=2))+
-  labs(title="There is a strong cohort effect in 'Deaths of despair'", 
-       subtitle="APC curvature plot showing modal age of death by cause")
+  labs(title="Temporal patterns in the age with the highest death rates", 
+       subtitle="APC curvature plot for 'Deaths of Despair'",
+       caption="Circles represent the age within each year with the highest mortality rate for each of the three causes, restricted to ages 20-85,\nsized according to the mortality rate.")
 
 dev.off()
 
@@ -1511,6 +1710,8 @@ agg_png("Outputs/DoDUSAModalAges.png", units="in", width=8, height=8, res=500)
 USAPCcurve %>% 
   filter(!Cause %in% c("Total", "Cancer", "Metabolic", "DoD")) %>% 
   ggplot(aes(x=Year, y=mode_mx))+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=-Inf, ymax=34), fill="Grey80", colour=NA)+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=65, ymax=Inf), fill="Grey80", colour=NA)+
   geom_point(aes(colour=Cause, size=moderate_mx*100000), alpha=0.7)+
   geom_point(shape=21, colour="Black", aes(size=moderate_mx*100000))+
   theme_classic()+
@@ -1523,7 +1724,7 @@ USAPCcurve %>%
            family=font)+
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="Cause", labels=c("Alcohol", "Drugs", "Suicide"))+
   scale_size(name="Deaths per 100,000")+
-  scale_x_continuous(name="Period", limits=c(1999, 2024))+
+  scale_x_continuous(name="Period", limits=c(1999, 2024), breaks=c(2000, 2005, 2010, 2015, 2020))+
   scale_y_continuous(name="Age", breaks=c(seq(20,90, by=10)))+
   facet_grid(~Sex)+
   coord_equal()+
