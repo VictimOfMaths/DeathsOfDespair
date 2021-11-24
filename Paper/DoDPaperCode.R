@@ -30,8 +30,8 @@ theme_custom <- function() {
 options(scipen=10000)
 
 #HMD credentials here
-username <- "c.r.angus@sheffield.ac.uk" 
-password <- "1574553541"
+username <- "" 
+password <- ""
 
 #########################################################
 #Start by pulling together all the data and tidying it up
