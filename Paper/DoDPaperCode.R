@@ -650,21 +650,37 @@ niallcause.2004 <- nidata.2004 %>% slice_head(n=2)
 
 nidata.2004 <- nidata.2004 %>% slice(4:nrow(.))
 
-#2003 data and earlier is only available as pdfs. You could digitise the tables, but they are
-#*massive* and it would be a huge pain. Something along these lines, but a thousand times longer...
+#2003 data and earlier is only available as pdfs
 #https://www.nisra.gov.uk/publications/registrar-general-annual-reports-2001-2010
+#Many thanks to Irina Kolegova for digitising these
+niurl.0103 <- "https://github.com/VictimOfMaths/DeathsOfDespair/raw/master/Paper/NITables6_4_2001_2003.xlsx"
+temp <- curl_download(url=niurl.0103, destfile=temp, quiet=FALSE, mode="wb")
 
-#nifile.2003 <- tempfile()
-#niurl.2003 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/82%20ANNUAL%20REPORT%20OF%20THE%20REGISTRAR%20GENERAL%20FOR%20NI%202003%5B1%5D.pdf"
-#nifile.2003 <- curl_download(url=niurl.2003, destfile=temp, quiet=FALSE, mode="wb")
+nidata.2003 <- read_excel(temp, sheet="2003_no_sum", range=c("A6:X1295"), col_names=FALSE) %>% 
+  mutate(Year=2003)
 
-#test <- pdf_data(nifile.2003)[[130]] %>% 
-#  select(x, y, text) %>% 
-#  spread(x, text)
+niallcause.2003 <- nidata.2003 %>% slice_head(n=2) 
+
+nidata.2003 <- nidata.2003 %>% slice(3:nrow(.))
+
+nidata.2002 <- read_excel(temp, sheet="2002_no_sum", range=c("A6:X1295"), col_names=FALSE) %>% 
+  mutate(Year=2002)
+
+niallcause.2002 <- nidata.2002 %>% slice_head(n=2) 
+
+nidata.2002 <- nidata.2002 %>% slice(3:nrow(.))
+
+nidata.2001 <- read_excel(temp, sheet="2001_no_sum", range=c("A6:X1258"), col_names=FALSE) %>% 
+  mutate(Year=2001,
+         across(c(4:24), as.character))
+
+niallcause.2001 <- nidata.2001 %>% slice_head(n=2) 
+
+nidata.2001 <- nidata.2001 %>% slice(3:nrow(.))
 
 #Stitch them all together
-nidata <- bind_rows(nidata.2004, nidata.2005, nidata.2006, nidata.2007, nidata.2008, nidata.2009, 
-                    nidata.2010, nidata.2011) %>% 
+nidata <- bind_rows(nidata.2001, nidata.2002, nidata.2003, nidata.2004, nidata.2005, nidata.2006, 
+                    nidata.2007, nidata.2008, nidata.2009, nidata.2010, nidata.2011) %>% 
   fill(`...1`) %>% 
   filter(!is.na(`...4`)) %>% 
   select(-4) %>% 
@@ -717,8 +733,9 @@ nidata <- bind_rows(nidata.2004, nidata.2005, nidata.2006, nidata.2007, nidata.2
   ungroup()
   
 #Add all-cause total
-niallcause <- bind_rows(niallcause.2004, niallcause.2005, niallcause.2006, niallcause.2007,
-                        niallcause.2008, niallcause.2009, niallcause.2010, niallcause.2011) %>% 
+niallcause <- bind_rows(niallcause.2001, niallcause.2002, niallcause.2003, niallcause.2004, 
+                        niallcause.2005, niallcause.2006, niallcause.2007, niallcause.2008, 
+                        niallcause.2009, niallcause.2010, niallcause.2011) %>% 
   select(-c(`...1`,`...2`, `...4`)) %>% 
   gather(Age, Dx, c(2:21)) %>% 
   mutate(Age=case_when(
@@ -765,7 +782,7 @@ nidata.wide <- nidata %>%
 
 #Download populations
 nipop <- readHMDweb(CNTRY="GBR_NIR", "Exposures_1x1", username, password) %>% 
-  filter(Year>=2004) %>% 
+  filter(Year>=2001) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
   spread(Year, Ex) %>% 
@@ -783,7 +800,7 @@ nipop.grouped <- nipop %>%
     Age<55 ~ 50, Age<60 ~ 55, Age<65 ~ 60, Age<70 ~ 65, Age<75 ~ 70, Age<80 ~ 75,
     Age<85 ~ 80, TRUE ~ 85)) %>% 
   group_by(Sex, agestart) %>%
-  summarise(across(`2004`:`2019`, sum, na.rm=TRUE)) %>% 
+  summarise(across(`2001`:`2019`, sum, na.rm=TRUE)) %>% 
   ungroup()
 
 rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "scotdata.wide", "scotpop", 
@@ -804,10 +821,10 @@ UKdata <- ewdata.wide %>%
               merge(scotpop.grouped %>% gather(Year, pop, c(3:21))) %>% 
               mutate(mx=Dx*100000/pop)) %>% 
   bind_rows(nidata.wide %>% 
-              gather(Year, Dx, c(5:20)) %>% 
+              gather(Year, Dx, c(5:23)) %>% 
               select(Cause, agestart, Sex, Year, Dx) %>% 
               mutate(Country="Northern Ireland") %>%
-              merge(nipop.grouped %>% gather(Year, pop, c(3:18))) %>% 
+              merge(nipop.grouped %>% gather(Year, pop, c(3:21))) %>% 
               mutate(mx=Dx*100000/pop))
 
 #Plot raw mx
@@ -864,8 +881,7 @@ offset <- UKdata %>% select(-c(Dx, mx)) %>%
 mx_smoothed1D <- data.frame(Country=character(), Cause=character(), Sex=integer(), Age=integer(),
                             Year=integer(), mx_smt1D=double())
 
-#NI data has fewer years, so smooth separately (because I'm not clever enough to put it all together)
-for(i in c("England & Wales", "Scotland")){
+for(i in c("England & Wales", "Northern Ireland", "Scotland")){
   for(j in c("Alcohol", "Drugs", "Suicide", "Total")){
     for(k in 1:2){
       for(l in 2001:2019){
@@ -895,40 +911,10 @@ for(i in c("England & Wales", "Scotland")){
   }
 }
 
-for(i in c("Northern Ireland")){
-  for(j in c("Alcohol", "Drugs", "Suicide", "Total")){
-    for(k in 1:2){
-      for(l in 2004:2019){
-        y <- z %>% filter(Country==i & Cause==j & Sex==k) %>% 
-          select(-c(agestart, Sex, Country, Cause, Sex)) %>% 
-          select(c(l-2000)) %>% 
-          unlist() %>% 
-          as.vector()
-        
-        offset_i <- offset %>% filter(Country==i & Cause==j & Sex==k& agestart>=10) %>% 
-          select(-c(agestart, Sex, Country, Cause, Sex)) %>% 
-          select(c(l-2000)) %>% 
-          log() %>% 
-          unlist() %>% 
-          as.vector()
-        
-        mod <- Mort1Dsmooth(x, y, offset=offset_i)
-        
-        mx_smoothed1D <- predict(mod, newdata=c(10:85)) %>% 
-          exp() %>% 
-          as.data.frame() %>% 
-          rename(mx_smt1D=1) %>% 
-          mutate(Age=c(10:85), Country=i, Cause=j, Sex=k, Year=l) %>% 
-          bind_rows(mx_smoothed1D)
-      }
-    }
-  }
-}
-
 UKsmoothed <- mx_smoothed1D %>% 
   merge(ewpop %>% gather(Year, pop.ew, c(3:21))) %>% 
   merge(scotpop %>% gather(Year, pop.s, c(3:21))) %>% 
-  merge(nipop %>% gather(Year, pop.ni, c(3:18)), all.x=TRUE) %>% 
+  merge(nipop %>% gather(Year, pop.ni, c(3:21)), all.x=TRUE) %>% 
   mutate(pop=case_when(
     Country=="Scotland" ~ pop.s, 
     Country=="England & Wales" ~ pop.ew,
@@ -950,8 +936,8 @@ UKsmoothed %>%
         axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
   coord_equal()+
   labs(title="Smoothed mortality rates from 'Deaths of Despair'\nin UK males",
-       subtitle="Lexis surfaces showing mortality rates by age between 2001-2019*",
-       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n\n*Northern Irish data from 2004-2019 only")
+       subtitle="Lexis surfaces showing mortality rates by age between 2001-2019",
+       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n")
 
 dev.off()
 
@@ -969,8 +955,8 @@ UKsmoothed %>%
         axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
   coord_equal()+
   labs(title="Smoothed mortality rates from 'Deaths of Despair'\nin UK females",
-       subtitle="Lexis surfaces showing mortality rates by age between 2001-2019*",
-       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n\n*Northern Irish data from 2004-2019 only")
+       subtitle="Lexis surfaces showing mortality rates by age between 2001-2019",
+       caption="Data from Office for National Statistics, Northern Ireland Statistics\nand Research Agency and National Records of Scotland\n")
 
 dev.off()
 
@@ -984,13 +970,29 @@ dev.off()
 #Read in Canadian data
 #Cancer data from https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1310014201
 #(not using cancer data any more, but this file has the all cause data in it)
-Can.can <- read.csv("Data/StatCan Data/StatCan Cancer.csv")
+temp <- tempfile()
+Can.canurl <- "https://raw.githubusercontent.com/VictimOfMaths/DeathsOfDespair/master/Paper/StatCan%20Cancer.csv"
+temp <- curl_download(url=Can.canurl, destfile=temp, quiet=FALSE, mode="wb")
+
+Can.can <- read.csv(temp)
+
 #Mental and behavioural data from https://www150.statcan.gc.ca/t1/tbl1/en/cv.action?pid=1310014301
-Can.men <- read.csv("Data/StatCan Data/StatCan Mental.csv")
+Can.menurl <- "https://github.com/VictimOfMaths/DeathsOfDespair/raw/master/Paper/StatCan%20Mental.csv"
+temp <- curl_download(url=Can.menurl, destfile=temp, quiet=FALSE, mode="wb")
+
+Can.men <- read.csv(temp)
+
 #Liver disease from https://www150.statcan.gc.ca/t1/tbl1/en/cv.action?pid=1310014801
-Can.dig <- read.csv("Data/StatCan Data/StatCan Digestive.csv")
+Can.digurl <- "https://raw.githubusercontent.com/VictimOfMaths/DeathsOfDespair/master/Paper/StatCan%20Digestive.csv"
+temp <- curl_download(url=Can.digurl, destfile=temp, quiet=FALSE, mode="wb")
+
+Can.dig <- read.csv(temp)
+
 #External cause data from https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1310015601
-Can.ext <- read.csv("Data/StatCan Data/StatCan External.csv")
+Can.exturl <- "https://github.com/VictimOfMaths/DeathsOfDespair/raw/master/Paper/StatCan%20External.csv"
+temp <- curl_download(url=Can.exturl, destfile=temp, quiet=FALSE, mode="wb")
+
+Can.ext <- read.csv(temp)
 
 #Combine and separate out into causes of interest
 Candata <- bind_rows(Can.can, Can.men, Can.dig, Can.ext) %>% 
@@ -1185,16 +1187,29 @@ rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "scotdata.wide"
 #########################################################################
 #Read in US data
 #All downloaded from the CDC wonder database using the same ICD-10 definitions as above
-US.alc <- read.csv("CDC Data/CDCAlcoholDeaths.txt", sep="\t")%>% 
+temp <- tempfile()
+US.alcurl <- "https://raw.githubusercontent.com/VictimOfMaths/DeathsOfDespair/master/Paper/CDCAlcoholDeaths.txt"
+temp <- curl_download(url=US.alcurl, destfile=temp, quiet=FALSE, mode="wb")
+
+US.alc <- read.csv(temp, sep="\t") %>% 
   mutate(Cause="Alcohol")
 
-US.drg <- read.csv("CDC Data/CDCDrugDeaths.txt", sep="\t") %>% 
+US.drgurl <- "https://raw.githubusercontent.com/VictimOfMaths/DeathsOfDespair/master/Paper/CDCDrugDeaths.txt"
+temp <- curl_download(url=US.drgurl, destfile=temp, quiet=FALSE, mode="wb")
+
+US.drg <- read.csv(temp, sep="\t") %>% 
   mutate(Cause="Drugs")
 
-US.scd <- read.csv("CDC Data/CDCSuicideDeaths.txt", sep="\t") %>% 
+US.scdurl <- "https://raw.githubusercontent.com/VictimOfMaths/DeathsOfDespair/master/Paper/CDCSuicideDeaths.txt"
+temp <- curl_download(url=US.scdurl, destfile=temp, quiet=FALSE, mode="wb")
+
+US.scd <- read.csv(temp, sep="\t") %>% 
   mutate(Cause="Suicide")
 
-US.tot <- read.csv("CDC Data/CDCAllCauseDeaths.txt", sep="\t") %>% 
+US.toturl <- "https://raw.githubusercontent.com/VictimOfMaths/DeathsOfDespair/master/Paper/CDCAllCauseDeaths.txt"
+temp <- curl_download(url=US.toturl, destfile=temp, quiet=FALSE, mode="wb")
+
+US.tot <- read.csv(temp, sep="\t") %>% 
   mutate(Cause="Total")
 
 USdata <- bind_rows(US.alc, US.drg, US.scd, US.tot) %>% 
@@ -1503,7 +1518,8 @@ table_f <- gt(tabledata_f, rowname_col = "ageband") %>%
  tab_spanner(label="England & Wales", columns=c(`England & Wales_2001`, 
                                                        `England & Wales_2010`,
                                                        `England & Wales_2019`)) %>% 
-  tab_spanner(label="Northern Ireland", columns=c(`Northern Ireland_2010`,
+  tab_spanner(label="Northern Ireland", columns=c(`Northern Ireland_2001`, 
+                                                  `Northern Ireland_2010`,
                                                         `Northern Ireland_2019`)) %>% 
   tab_spanner(label="Scotland", columns=c(Scotland_2001, Scotland_2010,
                                                 Scotland_2019)) %>% 
@@ -1515,6 +1531,7 @@ table_f <- gt(tabledata_f, rowname_col = "ageband") %>%
              `England & Wales_2001`="2001",
              `England & Wales_2010`="2010",
              `England & Wales_2019`="2019",
+             `Northern Ireland_2001`="2001",
              `Northern Ireland_2010`="2010",
              `Northern Ireland_2019`="2019",
              Scotland_2001="2001",
@@ -1531,16 +1548,17 @@ table_f <- gt(tabledata_f, rowname_col = "ageband") %>%
              apply_to=c("fill")) %>% 
   data_color(columns=c(`England & Wales_2001`, `England & Wales_2010`, `England & Wales_2019`), 
              colors=c("#FFCE4E"), alpha=0.1, apply_to=c("fill")) %>% 
-  data_color(columns=c(`Northern Ireland_2010`, `Northern Ireland_2019`), 
+  data_color(columns=c(`Northern Ireland_2001`, `Northern Ireland_2010`, `Northern Ireland_2019`), 
              colors=c("#3d98d3"), alpha=0.1, apply_to=c("fill")) %>% 
   data_color(columns=c(Scotland_2001, Scotland_2010, Scotland_2019), colors=c("#ff363c"), alpha=0.1,
              apply_to=c("fill")) %>% 
   data_color(columns=c(USA_2001, USA_2010, USA_2019), colors=c("#7559a2"), alpha=0.1,
              apply_to=c("fill")) %>% 
   data_color(columns=c(Canada_2001, Canada_2010, Canada_2019, `England & Wales_2001`, 
-                       `England & Wales_2010`, `England & Wales_2019`, `Northern Ireland_2010`, 
-                       `Northern Ireland_2019`, Scotland_2001, Scotland_2010, Scotland_2019,
-                       USA_2001, USA_2010, USA_2019), colors=c("Black"), 
+                       `England & Wales_2010`, `England & Wales_2019`, `Northern Ireland_2001`,
+                       `Northern Ireland_2010`, `Northern Ireland_2019`, Scotland_2001, 
+                       Scotland_2010, Scotland_2019, USA_2001, USA_2010, USA_2019), 
+             colors=c("Black"), 
              apply_to=c("text"))
 
 table_m <- gt(tabledata_m, rowname_col = "ageband") %>% 
@@ -1552,8 +1570,9 @@ table_m <- gt(tabledata_m, rowname_col = "ageband") %>%
   tab_spanner(label="England & Wales", columns=c(`England & Wales_2001`, 
                                                      `England & Wales_2010`,
                                                      `England & Wales_2019`)) %>% 
-  tab_spanner(label="Northern Ireland", columns=c(`Northern Ireland_2010`,
-                                                      `Northern Ireland_2019`)) %>% 
+  tab_spanner(label="Northern Ireland", columns=c(`Northern Ireland_2001`, 
+                                                  `Northern Ireland_2010`,
+                                                  `Northern Ireland_2019`)) %>% 
   tab_spanner(label="Scotland", columns=c(Scotland_2001, Scotland_2010,
                                               Scotland_2019)) %>% 
   tab_spanner(label="USA", columns=c(USA_2001, USA_2010,
@@ -1564,6 +1583,7 @@ table_m <- gt(tabledata_m, rowname_col = "ageband") %>%
              `England & Wales_2001`="2001",
              `England & Wales_2010`="2010",
              `England & Wales_2019`="2019",
+             `Northern Ireland_2001`="2001",
              `Northern Ireland_2010`="2010",
              `Northern Ireland_2019`="2019",  
              Scotland_2001="2001",
@@ -1580,16 +1600,17 @@ table_m <- gt(tabledata_m, rowname_col = "ageband") %>%
              apply_to=c("fill")) %>% 
   data_color(columns=c(`England & Wales_2001`, `England & Wales_2010`, `England & Wales_2019`), 
              colors=c("#FFCE4E"), alpha=0.1, apply_to=c("fill")) %>% 
-  data_color(columns=c(`Northern Ireland_2010`, `Northern Ireland_2019`), 
+  data_color(columns=c(`Northern Ireland_2001`, `Northern Ireland_2010`, `Northern Ireland_2019`), 
              colors=c("#3d98d3"), alpha=0.1, apply_to=c("fill")) %>% 
   data_color(columns=c(Scotland_2001, Scotland_2010, Scotland_2019), colors=c("#ff363c"), alpha=0.1,
              apply_to=c("fill")) %>% 
   data_color(columns=c(USA_2001, USA_2010, USA_2019), colors=c("#7559a2"), alpha=0.1,
              apply_to=c("fill")) %>% 
   data_color(columns=c(Canada_2001, Canada_2010, Canada_2019, `England & Wales_2001`, 
-                       `England & Wales_2010`, `England & Wales_2019`, `Northern Ireland_2010`, 
-                       `Northern Ireland_2019`, Scotland_2001, Scotland_2010, Scotland_2019,
-                       USA_2001, USA_2010, USA_2019), colors=c("Black"), 
+                       `England & Wales_2010`, `England & Wales_2019`, `Northern Ireland_2001`,
+                       `Northern Ireland_2010`, `Northern Ireland_2019`, Scotland_2001, 
+                       Scotland_2010, Scotland_2019, USA_2001, USA_2010, USA_2019), 
+             colors=c("Black"), 
              apply_to=c("text"))
 
 
@@ -1617,7 +1638,8 @@ APCcurve <- Combined %>%
             mode=Age[which(Dx_smt1D==maxDx)][1], 
             mode_mx=Age[which(mx_smt1D==maxmx)][1], 
             moderate=mx_smt1D[which(Age==mode)],
-            moderate_mx=mx_smt1D[which(Age==mode_mx)]) %>% 
+            moderate_mx=mx_smt1D[which(Age==mode_mx)],
+            meanage=weighted.mean(Age, Dx_smt1D)) %>% 
   ungroup()
 
 ann_text <- data.frame(mode_mx=seq(29, 84, by=5), Year=rep(2022.5, times=12), 
@@ -1627,7 +1649,7 @@ agg_png("Outputs/DoDCombinedModalAges.png", units="in", width=10, height=9, res=
 APCcurve %>% 
   filter(!Cause %in% c("Total", "DoD")) %>% 
   ggplot(aes(x=Year, y=mode_mx))+
-  geom_rect(aes(xmin=1999, xmax=2020, ymin=-Inf, ymax=34), fill="Grey80", colour=NA)+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=-Inf, ymax=35), fill="Grey80", colour=NA)+
   geom_rect(aes(xmin=1999, xmax=2020, ymin=65, ymax=Inf), fill="Grey80", colour=NA)+
   geom_point(aes(colour=Cause, size=moderate_mx*100000), alpha=0.7)+
   geom_point(shape=21, colour="Black", aes(size=moderate_mx*100000))+
@@ -1663,7 +1685,7 @@ agg_png("Outputs/DoDCombinedModalAgesAlternate.png", units="in", width=8, height
 APCcurve %>% 
   filter(!Cause %in% c("Total", "DoD")) %>% 
   ggplot(aes(x=Year, y=mode_mx))+
-  geom_rect(aes(xmin=1999, xmax=2020, ymin=-Inf, ymax=34), fill="Grey80", colour=NA)+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=-Inf, ymax=35), fill="Grey80", colour=NA)+
   geom_rect(aes(xmin=1999, xmax=2020, ymin=65, ymax=Inf), fill="Grey80", colour=NA)+
   geom_point(aes(colour=Country, size=moderate_mx*100000), alpha=0.7)+
   geom_point(shape=21, colour="Black", aes(size=moderate_mx*100000))+
@@ -1691,6 +1713,77 @@ APCcurve %>%
   labs(title="Temporal patterns in the age with the highest death rates", 
        subtitle="APC curvature plot for 'Deaths of Despair'",
        caption="Circles represent the age within each year with the highest mortality rate for each of the three causes, restricted to ages 20-85,\nsized according to the mortality rate.")
+
+dev.off()
+
+#Plot of *mean* ages of death instead
+ann_text2 <- data.frame(meanage=seq(29, 70, by=5), Year=rep(2022.5, times=9), 
+                       label=as.character(seq(1995, 1955, by=-5)))
+
+agg_png("Outputs/DoDCombinedMeanAges.png", units="in", width=10, height=9, res=800)
+APCcurve %>% 
+  filter(!Cause %in% c("Total", "DoD")) %>% 
+  ggplot(aes(x=Year, y=meanage))+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=-Inf, ymax=35), fill="Grey80", colour=NA)+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=65, ymax=Inf), fill="Grey80", colour=NA)+
+  geom_line(aes(colour=Cause), size=1.2)+
+  theme_classic()+
+  geom_vline(xintercept = seq(2000, 2020, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
+  geom_hline(yintercept = seq(20, 75, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
+  geom_abline(intercept = seq(-1995, -1860, by=5), slope = 1, linetype="dashed", color="grey30", size=.10, alpha = 0.8)+
+  geom_text(data = ann_text2,
+            aes(label = label), size=3, angle=45, alpha=0.7, family=font)+
+  annotate("text", x = 2021, y = 22, label = "Cohort", size=3.2, angle = 45, color="black",
+           family=font)+
+  scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="Cause", 
+                      labels=c("Alcohol", "Drugs", "Suicide"))+
+  scale_size(name="Deaths per 100,000")+
+  scale_x_continuous(name="Period", limits=c(1999, 2024), breaks=c(2000, 2005, 2010, 2015, 2020))+
+  scale_y_continuous(name="Age", breaks=c(seq(20,90, by=10)), limits=c(18, 70))+
+  facet_grid(Sex ~ Country)+
+  coord_equal()+
+  theme(panel.spacing=unit(2, "lines"), strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)), 
+        plot.title=element_text(face="bold", size=rel(1.5)),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+        text=element_text(family=font), plot.title.position="plot",
+        plot.caption.position = "plot")+
+  guides(colour=guide_legend(order=1), size=guide_legend(order=2))+
+  labs(title="Temporal patterns in average ages of 'Deaths of Despair", 
+       subtitle="Mean ages of death by cause, country, year and sex")
+
+dev.off()
+
+agg_png("Outputs/DoDCombinedMeanAgesAlternate.png", units="in", width=8, height=9, res=800)
+APCcurve %>% 
+  filter(!Cause %in% c("Total", "DoD")) %>% 
+  ggplot(aes(x=Year, y=meanage))+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=-Inf, ymax=35), fill="Grey80", colour=NA)+
+  geom_rect(aes(xmin=1999, xmax=2020, ymin=65, ymax=Inf), fill="Grey80", colour=NA)+
+  geom_line(aes(colour=Country), size=1.2)+
+  theme_classic()+
+  geom_vline(xintercept = seq(2000, 2020, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
+  geom_hline(yintercept = seq(20, 75, by=5), linetype="dashed", color="grey30", size=.10, alpha = 0.8) +
+  geom_abline(intercept = seq(-1995, -1860, by=5), slope = 1, linetype="dashed", color="grey30", size=.10, alpha = 0.8)+
+  geom_text(data = ann_text2,
+            aes(label = label), size=3, angle=45, alpha=0.7, family=font)+
+  annotate("text", x = 2022, y = 25, label = "Cohort", size=3.2, angle = 45, color="black",
+           family=font)+
+  scale_colour_paletteer_d("awtools::mpalette")+
+  scale_size(name="Deaths per 100,000")+
+  scale_x_continuous(name="Period", limits=c(1999, 2024), breaks=c(2000, 2005, 2010, 2015, 2020))+
+  scale_y_continuous(name="Age", breaks=c(seq(20,90, by=10)), limits=c(18, 70))+
+  facet_grid(Sex ~ Cause)+
+  coord_equal()+
+  theme(panel.spacing=unit(2, "lines"), strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)), 
+        plot.title=element_text(face="bold", size=rel(1.5)),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+        text=element_text(family=font), plot.title.position="plot",
+        plot.caption.position = "plot")+
+  guides(colour=guide_legend(order=1), size=guide_legend(order=2))+
+  labs(title="Temporal patterns in average ages of 'Deaths of Despair", 
+       subtitle="Mean ages of death by cause, country, year and sex")
 
 dev.off()
 
