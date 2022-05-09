@@ -24,15 +24,21 @@ theme_custom <- function() {
           strip.background=element_blank(), strip.text=element_text(face="bold", size=rel(1)),
           plot.title=element_text(face="bold", size=rel(1.5), hjust=0,
                                   margin=margin(0,0,5.5,0)),
-          text=element_text(family=font))
+          text=element_text(family="Lato"),
+          plot.subtitle=element_text(colour="Grey40", hjust=0, vjust=1),
+          plot.caption=element_text(colour="Grey40", hjust=1, vjust=1, size=rel(0.8)),
+          axis.text=element_text(colour="Grey40"),
+          axis.title=element_text(colour="Grey20"),
+          legend.text=element_text(colour="Grey40"),
+          legend.title=element_text(colour="Grey20"))
 }
 
 
 options(scipen=10000)
 
 #HMD credentials here
-username <- "" 
-password <- ""
+username <- "c.r.angus@sheffield.ac.uk" 
+password <- "1574553541"
 
 #########################################################
 #Start by pulling together all the data and tidying it up
@@ -456,11 +462,11 @@ nidata.2019 <- nidata.2019 %>% slice(4:nrow(.))
 
 temp <- tempfile()
 nifile.2018 <- tempfile()
-niurl.2018 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/RG_2018.zip"
+niurl.2018 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/RG_tables_2018.zip"
 temp <- curl_download(url=niurl.2018, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2018)
 
-nidata.2018 <- read_excel(file.path(nifile.2018, "Cause_Death_Tables_2018.xlsx"), sheet="Table 6.4", 
+nidata.2018 <- read_excel(file.path(nifile.2018, "Section 6 - Cause of Death.xlsx"), sheet="Table 6.4", 
                           range=c("A8:X2882"), col_names=FALSE) %>% 
   mutate(Year=2018)
 
@@ -469,7 +475,7 @@ niallcause.2018 <- nidata.2018 %>% slice_head(n=2)
 nidata.2018 <- nidata.2018 %>% slice(4:nrow(.))
 
 nifile.2017 <- tempfile()
-niurl.2017 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/RG_2017.zip"
+niurl.2017 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/RG_tables_2017.zip"
 temp <- curl_download(url=niurl.2017, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2017)
 
@@ -1401,11 +1407,14 @@ Combined_short <- Combined %>%
 agg_png("Outputs/DoDCombinedTotal.png", units="in", width=10, height=6, res=500)
 Combined_short %>% 
   filter(Cause=="Total" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
+  mutate(ymax=case_when(
+    ageband=="35-44" ~ 300, ageband=="45-54" ~ 700, ageband=="55-64" ~ 1800)) %>% 
   ggplot()+
   geom_line(aes(x=Year, y=mx_std_roll, colour=Country))+
   scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
   scale_colour_paletteer_d("awtools::mpalette", name="")+
   facet_wrap(Sex~ageband, scales="free_y")+
+  geom_blank(aes(y=ymax))+
   theme_custom()+
   theme(panel.background=element_rect(fill="Grey95"),
         axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
@@ -1511,7 +1520,7 @@ tabledata_m <- Combined_short %>%
 
 table_f <- gt(tabledata_f, rowname_col = "ageband") %>% 
   tab_header(title=md("**Female mortality rates for 'Deaths of Despair'**"),
-             subtitle="Age-standardised death rates among women by year, country, cause, sex and age group") %>% 
+             subtitle="Age-standardised death rates among women by year, country, cause and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   tab_spanner(label="Canada", columns=c(Canada_2001, Canada_2010,
                                                 Canada_2019)) %>% 
@@ -1631,7 +1640,7 @@ Combined %>% filter(Cause %in% c("Alcohol", "Drugs", "Suicide") & Sex=="Male") %
 
 #Pick out modal age of death for each cause, in each country in each year
 APCcurve <- Combined %>%
-  filter(Age<=85 & Age>=20) %>% 
+  filter(Age<=65 & Age>=20) %>% 
   group_by(Year, Cause, Country, Sex) %>%
   summarise(maxDx=max(Dx_smt1D),
             maxmx=max(mx_smt1D),
@@ -1642,15 +1651,15 @@ APCcurve <- Combined %>%
             meanage=weighted.mean(Age, Dx_smt1D)) %>% 
   ungroup()
 
-ann_text <- data.frame(mode_mx=seq(29, 84, by=5), Year=rep(2022.5, times=12), 
-                       label=as.character(seq(1995, 1940, by=-5)))
+ann_text <- data.frame(mode_mx=seq(29, 64, by=5), Year=rep(2022.5, times=8), 
+                       label=as.character(seq(1995, 1960, by=-5)))
 
-agg_png("Outputs/DoDCombinedModalAges.png", units="in", width=10, height=9, res=800)
+agg_png("Outputs/DoDCombinedModalAges.png", units="in", width=10, height=7, res=800)
 APCcurve %>% 
   filter(!Cause %in% c("Total", "DoD")) %>% 
   ggplot(aes(x=Year, y=mode_mx))+
   geom_rect(aes(xmin=1999, xmax=2020, ymin=-Inf, ymax=35), fill="Grey80", colour=NA)+
-  geom_rect(aes(xmin=1999, xmax=2020, ymin=65, ymax=Inf), fill="Grey80", colour=NA)+
+  #geom_rect(aes(xmin=1999, xmax=2020, ymin=65, ymax=Inf), fill="Grey80", colour=NA)+
   geom_point(aes(colour=Cause, size=moderate_mx*100000), alpha=0.7)+
   geom_point(shape=21, colour="Black", aes(size=moderate_mx*100000))+
   theme_classic()+
@@ -1665,7 +1674,7 @@ APCcurve %>%
                       labels=c("Alcohol", "Drugs", "Suicide"))+
   scale_size(name="Deaths per 100,000")+
   scale_x_continuous(name="Period", limits=c(1999, 2024), breaks=c(2000, 2005, 2010, 2015, 2020))+
-  scale_y_continuous(name="Age", breaks=c(seq(20,90, by=10)), limits=c(18, 86))+
+  scale_y_continuous(name="Age", breaks=c(seq(20,60, by=10)), limits=c(18, 66))+
   facet_grid(Sex ~ Country)+
   coord_equal()+
   theme(panel.spacing=unit(2, "lines"), strip.background=element_blank(),
@@ -1677,11 +1686,11 @@ APCcurve %>%
   guides(colour=guide_legend(order=1), size=guide_legend(order=2))+
   labs(title="Temporal patterns in the age with the highest death rates", 
        subtitle="APC curvature plot for 'Deaths of Despair'",
-       caption="Circles represent the age within each year with the highest mortality rate for each of the three causes, restricted to ages 20-85, sized according to the mortality rate.")
+       caption="Circles represent the age within each year with the highest mortality rate for each of the three causes, restricted to ages 20-65, sized according to the mortality rate.")
        
 dev.off()
 
-agg_png("Outputs/DoDCombinedModalAgesAlternate.png", units="in", width=8, height=9, res=800)
+agg_png("Outputs/DoDCombinedModalAgesAlternate.png", units="in", width=10, height=7, res=800)
 APCcurve %>% 
   filter(!Cause %in% c("Total", "DoD")) %>% 
   ggplot(aes(x=Year, y=mode_mx))+
@@ -1899,4 +1908,320 @@ ggplot(cohort %>% filter(Cause=="Suicide"),
   labs(title="Cohort effects in deaths by suicide")
 dev.off()
 
+##################
+#Supplemental tables
+#Generate tables of mortality rates
+tabledata_f_supp <- Combined_short %>% 
+  ungroup() %>% 
+  select(ageband, Country, Sex, Year, Cause, mx_std) %>% 
+  mutate(mx_std=round(mx_std, digits=1),
+         Cause=case_when(
+           Cause=="DoD" ~ "Combined 'Deaths of Despair'",
+           Cause=="Total" ~ "All-Cause",
+           TRUE ~ Cause)) %>% 
+  filter(ageband %in% c("35-44", "45-54", "55-64") &
+           Sex=="Female") %>% 
+  select(-Sex) %>% 
+  arrange(Country, Year) %>% 
+  pivot_wider(names_from=c(Country, Year), values_from=c(mx_std)) %>% 
+  mutate(Cause=factor(Cause, levels=c("All-Cause", "Combined 'Deaths of Despair'",
+                                      "Alcohol", "Drugs", "Suicide"))) %>% 
+  group_by(Cause)
+
+tabledata_m_supp <- Combined_short %>% 
+  ungroup() %>% 
+  select(ageband, Country, Sex, Year, Cause, mx_std) %>% 
+  mutate(mx_std=round(mx_std, digits=1),
+         Cause=case_when(
+           Cause=="DoD" ~ "Combined 'Deaths of Despair'",
+           Cause=="Total" ~ "All-Cause",
+           TRUE ~ Cause)) %>% 
+  filter(ageband %in% c("35-44", "45-54", "55-64") &
+           Sex=="Male") %>% 
+  select(-Sex) %>% 
+  arrange(Country, Year) %>% 
+  pivot_wider(names_from=c(Country, Year), values_from=c(mx_std)) %>% 
+  mutate(Cause=factor(Cause, levels=c("All-Cause", "Combined 'Deaths of Despair'",
+                                      "Alcohol", "Drugs", "Suicide"))) %>% 
+  group_by(Cause)
+
+#Canada
+table_f_supp_can <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("Canada")), 
+                      rowname_col = "ageband") %>% 
+  tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in Canada**"),
+             subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  cols_label(Canada_2001="2001", Canada_2002="2002", Canada_2003="2003", Canada_2004="2004",
+             Canada_2005="2005", Canada_2006="2006", Canada_2007="2007", Canada_2008="2008",
+             Canada_2009="2009", Canada_2010="2010", Canada_2011="2011", Canada_2012="2012",
+             Canada_2013="2013", Canada_2014="2014", Canada_2015="2015", Canada_2016="2016",
+             Canada_2017="2017", Canada_2018="2018", Canada_2019="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts())) %>% 
+  data_color(columns=c(Canada_2001, Canada_2002, Canada_2003, Canada_2004, Canada_2005,
+                       Canada_2006, Canada_2007, Canada_2008, Canada_2009, Canada_2010, 
+                       Canada_2011, Canada_2012, Canada_2013, Canada_2014, Canada_2015,
+                       Canada_2016, Canada_2017, Canada_2018, Canada_2019), colors=c("#017a4a"), 
+             alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(Canada_2001, Canada_2002, Canada_2003, Canada_2004, Canada_2005,
+                       Canada_2006, Canada_2007, Canada_2008, Canada_2009, Canada_2010, 
+                       Canada_2011, Canada_2012, Canada_2013, Canada_2014, Canada_2015,
+                       Canada_2016, Canada_2017, Canada_2018, Canada_2019), 
+             colors=c("Black"), 
+             apply_to=c("text"))
+
+table_m_supp_can <- gt(tabledata_m_supp %>% select(ageband, Cause, starts_with("Canada")), 
+                      rowname_col = "ageband") %>% 
+  tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in Canada**"),
+             subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  cols_label(Canada_2001="2001", Canada_2002="2002", Canada_2003="2003", Canada_2004="2004",
+             Canada_2005="2005", Canada_2006="2006", Canada_2007="2007", Canada_2008="2008",
+             Canada_2009="2009", Canada_2010="2010", Canada_2011="2011", Canada_2012="2012",
+             Canada_2013="2013", Canada_2014="2014", Canada_2015="2015", Canada_2016="2016",
+             Canada_2017="2017", Canada_2018="2018", Canada_2019="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts())) %>% 
+  data_color(columns=c(Canada_2001, Canada_2002, Canada_2003, Canada_2004, Canada_2005,
+                       Canada_2006, Canada_2007, Canada_2008, Canada_2009, Canada_2010, 
+                       Canada_2011, Canada_2012, Canada_2013, Canada_2014, Canada_2015,
+                       Canada_2016, Canada_2017, Canada_2018, Canada_2019), colors=c("#017a4a"), 
+             alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(Canada_2001, Canada_2002, Canada_2003, Canada_2004, Canada_2005,
+                       Canada_2006, Canada_2007, Canada_2008, Canada_2009, Canada_2010, 
+                       Canada_2011, Canada_2012, Canada_2013, Canada_2014, Canada_2015,
+                       Canada_2016, Canada_2017, Canada_2018, Canada_2019), 
+             colors=c("Black"), 
+             apply_to=c("text"))
+
+gtsave(table_f_supp_can, "Outputs/DoDTableFemale_supp_can.png")
+gtsave(table_m_supp_can, "Outputs/DoDTableMale_supp_can.png")
+
+#England & Wales
+table_f_supp_ew <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("England")), 
+                       rowname_col = "ageband") %>% 
+  tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in England & Wales**"),
+             subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  cols_label(`England & Wales_2001`="2001", `England & Wales_2002`="2002", `England & Wales_2003`="2003", `England & Wales_2004`="2004",
+             `England & Wales_2005`="2005", `England & Wales_2006`="2006", `England & Wales_2007`="2007", `England & Wales_2008`="2008",
+             `England & Wales_2009`="2009", `England & Wales_2010`="2010", `England & Wales_2011`="2011", `England & Wales_2012`="2012",
+             `England & Wales_2013`="2013", `England & Wales_2014`="2014", `England & Wales_2015`="2015", `England & Wales_2016`="2016",
+             `England & Wales_2017`="2017", `England & Wales_2018`="2018", `England & Wales_2019`="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts())) %>% 
+  data_color(columns=c(`England & Wales_2001`, `England & Wales_2002`, `England & Wales_2003`, `England & Wales_2004`, `England & Wales_2005`,
+                       `England & Wales_2006`, `England & Wales_2007`, `England & Wales_2008`, `England & Wales_2009`, `England & Wales_2010`, 
+                       `England & Wales_2011`, `England & Wales_2012`, `England & Wales_2013`, `England & Wales_2014`, `England & Wales_2015`,
+                       `England & Wales_2016`, `England & Wales_2017`, `England & Wales_2018`, `England & Wales_2019`), colors=c("#FFCE4E"), 
+             alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(`England & Wales_2001`, `England & Wales_2002`, `England & Wales_2003`, `England & Wales_2004`, `England & Wales_2005`,
+                       `England & Wales_2006`, `England & Wales_2007`, `England & Wales_2008`, `England & Wales_2009`, `England & Wales_2010`, 
+                       `England & Wales_2011`, `England & Wales_2012`, `England & Wales_2013`, `England & Wales_2014`, `England & Wales_2015`,
+                       `England & Wales_2016`, `England & Wales_2017`, `England & Wales_2018`, `England & Wales_2019`), 
+             colors=c("Black"), 
+             apply_to=c("text"))
+
+table_m_supp_ew <- gt(tabledata_m_supp %>% select(ageband, Cause, starts_with("England")), 
+                       rowname_col = "ageband") %>% 
+  tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in England & Wales**"),
+             subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  cols_label(`England & Wales_2001`="2001", `England & Wales_2002`="2002", `England & Wales_2003`="2003", `England & Wales_2004`="2004",
+             `England & Wales_2005`="2005", `England & Wales_2006`="2006", `England & Wales_2007`="2007", `England & Wales_2008`="2008",
+             `England & Wales_2009`="2009", `England & Wales_2010`="2010", `England & Wales_2011`="2011", `England & Wales_2012`="2012",
+             `England & Wales_2013`="2013", `England & Wales_2014`="2014", `England & Wales_2015`="2015", `England & Wales_2016`="2016",
+             `England & Wales_2017`="2017", `England & Wales_2018`="2018", `England & Wales_2019`="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts())) %>% 
+  data_color(columns=c(`England & Wales_2001`, `England & Wales_2002`, `England & Wales_2003`, `England & Wales_2004`, `England & Wales_2005`,
+                       `England & Wales_2006`, `England & Wales_2007`, `England & Wales_2008`, `England & Wales_2009`, `England & Wales_2010`, 
+                       `England & Wales_2011`, `England & Wales_2012`, `England & Wales_2013`, `England & Wales_2014`, `England & Wales_2015`,
+                       `England & Wales_2016`, `England & Wales_2017`, `England & Wales_2018`, `England & Wales_2019`), colors=c("#FFCE4E"), 
+             alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(`England & Wales_2001`, `England & Wales_2002`, `England & Wales_2003`, `England & Wales_2004`, `England & Wales_2005`,
+                       `England & Wales_2006`, `England & Wales_2007`, `England & Wales_2008`, `England & Wales_2009`, `England & Wales_2010`, 
+                       `England & Wales_2011`, `England & Wales_2012`, `England & Wales_2013`, `England & Wales_2014`, `England & Wales_2015`,
+                       `England & Wales_2016`, `England & Wales_2017`, `England & Wales_2018`, `England & Wales_2019`), 
+             colors=c("Black"), 
+             apply_to=c("text"))
+
+gtsave(table_f_supp_ew, "Outputs/DoDTableFemale_supp_ew.png")
+gtsave(table_m_supp_ew, "Outputs/DoDTableMale_supp_ew.png")
+
+#Northern Ireland
+table_f_supp_ni <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("Northern")), 
+                      rowname_col = "ageband") %>% 
+  tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in Northern Ireland**"),
+             subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  cols_label(`Northern Ireland_2001`="2001", `Northern Ireland_2002`="2002", `Northern Ireland_2003`="2003", `Northern Ireland_2004`="2004",
+             `Northern Ireland_2005`="2005", `Northern Ireland_2006`="2006", `Northern Ireland_2007`="2007", `Northern Ireland_2008`="2008",
+             `Northern Ireland_2009`="2009", `Northern Ireland_2010`="2010", `Northern Ireland_2011`="2011", `Northern Ireland_2012`="2012",
+             `Northern Ireland_2013`="2013", `Northern Ireland_2014`="2014", `Northern Ireland_2015`="2015", `Northern Ireland_2016`="2016",
+             `Northern Ireland_2017`="2017", `Northern Ireland_2018`="2018", `Northern Ireland_2019`="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts())) %>% 
+  data_color(columns=c(`Northern Ireland_2001`, `Northern Ireland_2002`, `Northern Ireland_2003`, `Northern Ireland_2004`, `Northern Ireland_2005`,
+                       `Northern Ireland_2006`, `Northern Ireland_2007`, `Northern Ireland_2008`, `Northern Ireland_2009`, `Northern Ireland_2010`, 
+                       `Northern Ireland_2011`, `Northern Ireland_2012`, `Northern Ireland_2013`, `Northern Ireland_2014`, `Northern Ireland_2015`,
+                       `Northern Ireland_2016`, `Northern Ireland_2017`, `Northern Ireland_2018`, `Northern Ireland_2019`), colors=c("#3d98d3"), 
+             alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(`Northern Ireland_2001`, `Northern Ireland_2002`, `Northern Ireland_2003`, `Northern Ireland_2004`, `Northern Ireland_2005`,
+                       `Northern Ireland_2006`, `Northern Ireland_2007`, `Northern Ireland_2008`, `Northern Ireland_2009`, `Northern Ireland_2010`, 
+                       `Northern Ireland_2011`, `Northern Ireland_2012`, `Northern Ireland_2013`, `Northern Ireland_2014`, `Northern Ireland_2015`,
+                       `Northern Ireland_2016`, `Northern Ireland_2017`, `Northern Ireland_2018`, `Northern Ireland_2019`), 
+             colors=c("Black"), 
+             apply_to=c("text"))
+
+table_m_supp_ni <- gt(tabledata_m_supp %>% select(ageband, Cause, starts_with("Northern")), 
+                      rowname_col = "ageband") %>% 
+  tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in Northern Ireland**"),
+             subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  cols_label(`Northern Ireland_2001`="2001", `Northern Ireland_2002`="2002", `Northern Ireland_2003`="2003", `Northern Ireland_2004`="2004",
+             `Northern Ireland_2005`="2005", `Northern Ireland_2006`="2006", `Northern Ireland_2007`="2007", `Northern Ireland_2008`="2008",
+             `Northern Ireland_2009`="2009", `Northern Ireland_2010`="2010", `Northern Ireland_2011`="2011", `Northern Ireland_2012`="2012",
+             `Northern Ireland_2013`="2013", `Northern Ireland_2014`="2014", `Northern Ireland_2015`="2015", `Northern Ireland_2016`="2016",
+             `Northern Ireland_2017`="2017", `Northern Ireland_2018`="2018", `Northern Ireland_2019`="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts())) %>% 
+  data_color(columns=c(`Northern Ireland_2001`, `Northern Ireland_2002`, `Northern Ireland_2003`, `Northern Ireland_2004`, `Northern Ireland_2005`,
+                       `Northern Ireland_2006`, `Northern Ireland_2007`, `Northern Ireland_2008`, `Northern Ireland_2009`, `Northern Ireland_2010`, 
+                       `Northern Ireland_2011`, `Northern Ireland_2012`, `Northern Ireland_2013`, `Northern Ireland_2014`, `Northern Ireland_2015`,
+                       `Northern Ireland_2016`, `Northern Ireland_2017`, `Northern Ireland_2018`, `Northern Ireland_2019`), colors=c("#3d98d3"), 
+             alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(`Northern Ireland_2001`, `Northern Ireland_2002`, `Northern Ireland_2003`, `Northern Ireland_2004`, `Northern Ireland_2005`,
+                       `Northern Ireland_2006`, `Northern Ireland_2007`, `Northern Ireland_2008`, `Northern Ireland_2009`, `Northern Ireland_2010`, 
+                       `Northern Ireland_2011`, `Northern Ireland_2012`, `Northern Ireland_2013`, `Northern Ireland_2014`, `Northern Ireland_2015`,
+                       `Northern Ireland_2016`, `Northern Ireland_2017`, `Northern Ireland_2018`, `Northern Ireland_2019`), 
+             colors=c("Black"), 
+             apply_to=c("text"))
+
+gtsave(table_f_supp_ni, "Outputs/DoDTableFemale_supp_ni.png")
+gtsave(table_m_supp_ni, "Outputs/DoDTableMale_supp_ni.png")
+
+#Scotland
+table_f_supp_sco <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("Scotland")), 
+                       rowname_col = "ageband") %>% 
+  tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in Scotland**"),
+             subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  cols_label(Scotland_2001="2001", Scotland_2002="2002", Scotland_2003="2003", Scotland_2004="2004",
+             Scotland_2005="2005", Scotland_2006="2006", Scotland_2007="2007", Scotland_2008="2008",
+             Scotland_2009="2009", Scotland_2010="2010", Scotland_2011="2011", Scotland_2012="2012",
+             Scotland_2013="2013", Scotland_2014="2014", Scotland_2015="2015", Scotland_2016="2016",
+             Scotland_2017="2017", Scotland_2018="2018", Scotland_2019="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts())) %>% 
+  data_color(columns=c(Scotland_2001, Scotland_2002, Scotland_2003, Scotland_2004, Scotland_2005,
+                       Scotland_2006, Scotland_2007, Scotland_2008, Scotland_2009, Scotland_2010, 
+                       Scotland_2011, Scotland_2012, Scotland_2013, Scotland_2014, Scotland_2015,
+                       Scotland_2016, Scotland_2017, Scotland_2018, Scotland_2019), colors=c("#ff363c"), 
+             alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(Scotland_2001, Scotland_2002, Scotland_2003, Scotland_2004, Scotland_2005,
+                       Scotland_2006, Scotland_2007, Scotland_2008, Scotland_2009, Scotland_2010, 
+                       Scotland_2011, Scotland_2012, Scotland_2013, Scotland_2014, Scotland_2015,
+                       Scotland_2016, Scotland_2017, Scotland_2018, Scotland_2019), 
+             colors=c("Black"), 
+             apply_to=c("text"))
+
+table_m_supp_sco <- gt(tabledata_m_supp %>% select(ageband, Cause, starts_with("Scotland")), 
+                       rowname_col = "ageband") %>% 
+  tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in Scotland**"),
+             subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  cols_label(Scotland_2001="2001", Scotland_2002="2002", Scotland_2003="2003", Scotland_2004="2004",
+             Scotland_2005="2005", Scotland_2006="2006", Scotland_2007="2007", Scotland_2008="2008",
+             Scotland_2009="2009", Scotland_2010="2010", Scotland_2011="2011", Scotland_2012="2012",
+             Scotland_2013="2013", Scotland_2014="2014", Scotland_2015="2015", Scotland_2016="2016",
+             Scotland_2017="2017", Scotland_2018="2018", Scotland_2019="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts())) %>% 
+  data_color(columns=c(Scotland_2001, Scotland_2002, Scotland_2003, Scotland_2004, Scotland_2005,
+                       Scotland_2006, Scotland_2007, Scotland_2008, Scotland_2009, Scotland_2010, 
+                       Scotland_2011, Scotland_2012, Scotland_2013, Scotland_2014, Scotland_2015,
+                       Scotland_2016, Scotland_2017, Scotland_2018, Scotland_2019), colors=c("#ff363c"), 
+             alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(Scotland_2001, Scotland_2002, Scotland_2003, Scotland_2004, Scotland_2005,
+                       Scotland_2006, Scotland_2007, Scotland_2008, Scotland_2009, Scotland_2010, 
+                       Scotland_2011, Scotland_2012, Scotland_2013, Scotland_2014, Scotland_2015,
+                       Scotland_2016, Scotland_2017, Scotland_2018, Scotland_2019), 
+             colors=c("Black"), 
+             apply_to=c("text"))
+
+gtsave(table_f_supp_sco, "Outputs/DoDTableFemale_supp_sco.png")
+gtsave(table_m_supp_sco, "Outputs/DoDTableMale_supp_sco.png", vwidth=1200)
+
+#USA
+table_f_supp_us <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("USA")), 
+                       rowname_col = "ageband") %>% 
+  tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in USA**"),
+             subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  cols_label(USA_2001="2001", USA_2002="2002", USA_2003="2003", USA_2004="2004",
+             USA_2005="2005", USA_2006="2006", USA_2007="2007", USA_2008="2008",
+             USA_2009="2009", USA_2010="2010", USA_2011="2011", USA_2012="2012",
+             USA_2013="2013", USA_2014="2014", USA_2015="2015", USA_2016="2016",
+             USA_2017="2017", USA_2018="2018", USA_2019="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts())) %>% 
+  data_color(columns=c(USA_2001, USA_2002, USA_2003, USA_2004, USA_2005,
+                       USA_2006, USA_2007, USA_2008, USA_2009, USA_2010, 
+                       USA_2011, USA_2012, USA_2013, USA_2014, USA_2015,
+                       USA_2016, USA_2017, USA_2018, USA_2019), colors=c("#7559a2"), 
+             alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(USA_2001, USA_2002, USA_2003, USA_2004, USA_2005,
+                       USA_2006, USA_2007, USA_2008, USA_2009, USA_2010, 
+                       USA_2011, USA_2012, USA_2013, USA_2014, USA_2015,
+                       USA_2016, USA_2017, USA_2018, USA_2019), 
+             colors=c("Black"), 
+             apply_to=c("text"))
+
+table_m_supp_us <- gt(tabledata_m_supp %>% select(ageband, Cause, starts_with("USA")), 
+                       rowname_col = "ageband") %>% 
+  tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in USA**"),
+             subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
+  tab_stubhead(label="Age group") %>% 
+  cols_label(USA_2001="2001", USA_2002="2002", USA_2003="2003", USA_2004="2004",
+             USA_2005="2005", USA_2006="2006", USA_2007="2007", USA_2008="2008",
+             USA_2009="2009", USA_2010="2010", USA_2011="2011", USA_2012="2012",
+             USA_2013="2013", USA_2014="2014", USA_2015="2015", USA_2016="2016",
+             USA_2017="2017", USA_2018="2018", USA_2019="2019") %>% 
+  row_group_order(groups=c("All-Cause", "Combined 'Deaths of Despair'",
+                           "Alcohol", "Drugs", "Suicide")) %>% 
+  tab_options(table.font.size = "small") %>% 
+  opt_table_font(font=c(google_font(name="Lato"), default_fonts())) %>% 
+  data_color(columns=c(USA_2001, USA_2002, USA_2003, USA_2004, USA_2005,
+                       USA_2006, USA_2007, USA_2008, USA_2009, USA_2010, 
+                       USA_2011, USA_2012, USA_2013, USA_2014, USA_2015,
+                       USA_2016, USA_2017, USA_2018, USA_2019), colors=c("#7559a2"), 
+             alpha=0.1, apply_to=c("fill")) %>% 
+  data_color(columns=c(USA_2001, USA_2002, USA_2003, USA_2004, USA_2005,
+                       USA_2006, USA_2007, USA_2008, USA_2009, USA_2010, 
+                       USA_2011, USA_2012, USA_2013, USA_2014, USA_2015,
+                       USA_2016, USA_2017, USA_2018, USA_2019), 
+             colors=c("Black"), 
+             apply_to=c("text"))
+
+gtsave(table_f_supp_us, "Outputs/DoDTableFemale_supp_us.png")
+gtsave(table_m_supp_us, "Outputs/DoDTableMale_supp_us.png", vwidth=1200)
 
