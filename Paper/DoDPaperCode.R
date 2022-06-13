@@ -43,35 +43,36 @@ password <- "1574553541"
 #########################################################
 #Start by pulling together all the data and tidying it up
 
+#2019 & 2020 populations now in HMD so below code now redundant
 #Get 2019 populations for the UK nations, as not in HMD yet
 #Thanks to Luyin Zhang for the code to tidy this data up
-ukpop <- tempfile()
-ukpopurl <- "https://www.ons.gov.uk/file?uri=%2fpeoplepopulationandcommunity%2fpopulationandmigration%2fpopulationestimates%2fdatasets%2fpopulationestimatesforukenglandandwalesscotlandandnorthernireland%2fmid2019april2020localauthoritydistrictcodes/ukmidyearestimates20192020ladcodes.xls"
-ukpop <- curl_download(url=ukpopurl, destfile=ukpop, quiet=FALSE, mode="wb")
+#ukpop <- tempfile()
+#ukpopurl <- "https://www.ons.gov.uk/file?uri=%2fpeoplepopulationandcommunity%2fpopulationandmigration%2fpopulationestimates%2fdatasets%2fpopulationestimatesforukenglandandwalesscotlandandnorthernireland%2fmid2019april2020localauthoritydistrictcodes/ukmidyearestimates20192020ladcodes.xls"
+#ukpop <- curl_download(url=ukpopurl, destfile=ukpop, quiet=FALSE, mode="wb")
 
-rawpop <- list()
-rawpop$male <- read_excel(ukpop, sheet = 'MYE2 - Males', skip = 4)
-rawpop$female <- read_excel(ukpop, sheet = 'MYE2 - Females', skip = 4)
+#rawpop <- list()
+#rawpop$male <- read_excel(ukpop, sheet = 'MYE2 - Males', skip = 4)
+#rawpop$female <- read_excel(ukpop, sheet = 'MYE2 - Females', skip = 4)
 
 #Clean data
-cleanedpop <- rawpop %>% bind_rows(.id='sex') %>% 
-  filter(Name %in% c('ENGLAND AND WALES', 'SCOTLAND', 'NORTHERN IRELAND') ) %>%
-  pivot_longer(
-    cols = c(`0`:`90+`),
-    names_to = 'age',
-    values_to = 'pop'
-  ) %>% 
-  mutate(
-    country = case_when(
-      Name=='ENGLAND AND WALES' ~ 1,
-      Name=='SCOTLAND' ~ 2,
-      Name=='NORTHERN IRELAND' ~ 3
-    ) %>% factor(labels = c('ENW','SCO','NIR')),
-    Sex = ifelse(sex=='male',1,2),
-    Age = parse_number(age)
-  ) %>%
-  select(country, Sex, Age, pop) %>%
-  arrange(country, Sex, Age, pop)
+#cleanedpop <- rawpop %>% bind_rows(.id='sex') %>% 
+#  filter(Name %in% c('ENGLAND AND WALES', 'SCOTLAND', 'NORTHERN IRELAND') ) %>%
+#  pivot_longer(
+#    cols = c(`0`:`90+`),
+#    names_to = 'age',
+#    values_to = 'pop'
+#  ) %>% 
+#  mutate(
+#    country = case_when(
+#      Name=='ENGLAND AND WALES' ~ 1,
+#      Name=='SCOTLAND' ~ 2,
+#      Name=='NORTHERN IRELAND' ~ 3
+#    ) %>% factor(labels = c('ENW','SCO','NIR')),
+#    Sex = ifelse(sex=='male',1,2),
+#    Age = parse_number(age)
+#  ) %>%
+#  select(country, Sex, Age, pop) %>%
+#  arrange(country, Sex, Age, pop)
   
 
 #################
@@ -176,11 +177,11 @@ ewpop <- readHMDweb(CNTRY="GBRTENW", "Exposures_1x1", username, password) %>%
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
   spread(Year, Ex) %>% 
-  mutate(Sex=if_else(Sex=="Male", 1, 2)) %>% 
+  mutate(Sex=if_else(Sex=="Male", 1, 2)) #%>% 
   #Add in 2019 data from ONS
-  merge(cleanedpop %>% filter(country=="ENW") %>% 
-          select(-country), all.x=TRUE) %>% 
-  rename("2019"="pop")
+  #merge(cleanedpop %>% filter(country=="ENW") %>% 
+  #        select(-country), all.x=TRUE) %>% 
+  #rename("2019"="pop")
 
 #Group populations to match deaths age groups
 ewpop.grouped <- ewpop %>% 
@@ -424,11 +425,11 @@ scotpop <- readHMDweb(CNTRY="GBR_SCO", "Exposures_1x1", username, password) %>%
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
   spread(Year, Ex) %>% 
-  mutate(Sex=if_else(Sex=="Male", 1, 2)) %>% 
+  mutate(Sex=if_else(Sex=="Male", 1, 2)) #%>% 
   #Add in 2019 data from ONS
-  merge(cleanedpop %>% filter(country=="SCO") %>% 
-        select(-country), all.x=TRUE) %>% 
-  rename("2019"="pop")
+  #merge(cleanedpop %>% filter(country=="SCO") %>% 
+  #      select(-country), all.x=TRUE) %>% 
+  #rename("2019"="pop")
 
 #Group populations to match deaths age groups
 scotpop.grouped <- scotpop %>% 
@@ -792,11 +793,11 @@ nipop <- readHMDweb(CNTRY="GBR_NIR", "Exposures_1x1", username, password) %>%
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
   spread(Year, Ex) %>% 
-  mutate(Sex=if_else(Sex=="Male", 1, 2)) %>% 
+  mutate(Sex=if_else(Sex=="Male", 1, 2)) #%>% 
   #Add in 2019 data from ONS
-  merge(cleanedpop %>% filter(country=="NIR") %>% 
-          select(-country), all.x=TRUE) %>% 
-  rename("2019"="pop")
+  #merge(cleanedpop %>% filter(country=="NIR") %>% 
+  #        select(-country), all.x=TRUE) %>% 
+  #rename("2019"="pop")
 
 #Group populations to match deaths age groups
 nipop.grouped <- nipop %>% 
@@ -918,9 +919,9 @@ for(i in c("England & Wales", "Northern Ireland", "Scotland")){
 }
 
 UKsmoothed <- mx_smoothed1D %>% 
-  merge(ewpop %>% gather(Year, pop.ew, c(3:21))) %>% 
-  merge(scotpop %>% gather(Year, pop.s, c(3:21))) %>% 
-  merge(nipop %>% gather(Year, pop.ni, c(3:21)), all.x=TRUE) %>% 
+  merge(ewpop %>% select(-`2020`) %>% gather(Year, pop.ew, c(3:21))) %>% 
+  merge(scotpop %>% select(-`2020`) %>% gather(Year, pop.s, c(3:21))) %>% 
+  merge(nipop %>% select(-`2020`) %>% gather(Year, pop.ni, c(3:21)), all.x=TRUE) %>% 
   mutate(pop=case_when(
     Country=="Scotland" ~ pop.s, 
     Country=="England & Wales" ~ pop.ew,
@@ -1854,14 +1855,19 @@ cohort <- Combined %>%
          bandstart=as.numeric(substr(cohort_band, 2, 5)),
          age=Year-bandstart+2.5) 
 
+midlife_cohort <- cohort %>% 
+  filter(age>=35 & age<65)
+
 agg_png("Outputs/DoDCohortAlcohol.png", units="in", width=10, height=7, res=500)
-ggplot(cohort %>% filter(Cause=="Alcohol"), 
-       aes(x=age, y=mx_smt1D, group=cohort_band, colour=bandstart))+
+ggplot(midlife_cohort %>% filter(Cause=="Alcohol"), 
+       aes(x=age, y=mx_smt1D, group=cohort_band, colour=cohort_band))+
   geom_line()+
   scale_x_continuous(name="Age")+
   scale_y_continuous(name="Deaths per 100,000")+
   facet_grid(Sex~Country)+
-  scale_colour_paletteer_c("pals::ocean.curl", direction=-1, name="Birth cohort")+
+  #scale_colour_paletteer_c("pals::ocean.curl", direction=-1, name="Birth cohort")+
+  scale_colour_manual(values=c("#53354D", "#7D4F73", "#B887AD", "#CAA5C2", "#DBC3D6", "#99E3DD", 
+                               "#66D4CC", "#33C6BB", "#008A80", "#005C55"), name="Birth cohort")+
   theme_classic()+
   theme(panel.spacing=unit(2, "lines"), strip.background=element_blank(),
         strip.text=element_text(face="bold", size=rel(1)), 
@@ -1873,13 +1879,15 @@ ggplot(cohort %>% filter(Cause=="Alcohol"),
 dev.off()
 
 agg_png("Outputs/DoDCohortDrugs.png", units="in", width=10, height=7, res=500)
-ggplot(cohort %>% filter(Cause=="Drugs"), 
-       aes(x=age, y=mx_smt1D, group=cohort_band, colour=bandstart))+
+ggplot(midlife_cohort %>% filter(Cause=="Drugs"), 
+       aes(x=age, y=mx_smt1D, group=cohort_band, colour=cohort_band))+
   geom_line()+
   scale_x_continuous(name="Age")+
   scale_y_continuous(name="Deaths per 100,000")+
   facet_grid(Sex~Country)+
-  scale_colour_paletteer_c("pals::ocean.curl", direction=-1, name="Birth cohort")+
+  #scale_colour_paletteer_c("pals::ocean.curl", direction=-1, name="Birth cohort")+
+  scale_colour_manual(values=c("#53354D", "#7D4F73", "#B887AD", "#CAA5C2", "#DBC3D6", "#99E3DD", 
+                               "#66D4CC", "#33C6BB", "#008A80", "#005C55"), name="Birth cohort")+
   theme_classic()+
   theme(panel.spacing=unit(2, "lines"), strip.background=element_blank(),
         strip.text=element_text(face="bold", size=rel(1)), 
@@ -1891,13 +1899,15 @@ ggplot(cohort %>% filter(Cause=="Drugs"),
 dev.off()
 
 agg_png("Outputs/DoDCohortSuicide.png", units="in", width=10, height=7, res=500)
-ggplot(cohort %>% filter(Cause=="Suicide"), 
-       aes(x=age, y=mx_smt1D, group=cohort_band, colour=bandstart))+
+ggplot(midlife_cohort %>% filter(Cause=="Suicide"), 
+       aes(x=age, y=mx_smt1D, group=cohort_band, colour=cohort_band))+
   geom_line()+
   scale_x_continuous(name="Age")+
   scale_y_continuous(name="Deaths per 100,000")+
   facet_grid(Sex~Country)+
-  scale_colour_paletteer_c("pals::ocean.curl", direction=-1, name="Birth cohort")+
+  #scale_colour_paletteer_c("pals::ocean.curl", direction=-1, name="Birth cohort")+
+  scale_colour_manual(values=c("#53354D", "#7D4F73", "#B887AD", "#CAA5C2", "#DBC3D6", "#99E3DD", 
+                               "#66D4CC", "#33C6BB", "#008A80", "#005C55"), name="Birth cohort")+
   theme_classic()+
   theme(panel.spacing=unit(2, "lines"), strip.background=element_blank(),
         strip.text=element_text(face="bold", size=rel(1)), 
@@ -1905,7 +1915,75 @@ ggplot(cohort %>% filter(Cause=="Suicide"),
         axis.text.x=element_text(angle=45, hjust=1, vjust=1),
         text=element_text(family="Lato"), plot.title.position="plot",
         plot.caption.position = "plot")+
-  labs(title="Cohort effects in deaths by suicide")
+  labs(title="Cohort effects in suicide deaths")
+dev.off()
+
+#Repeat with 10-year cohort bands
+cohort2 <- Combined %>% 
+  mutate(cohort=Year-Age, 
+         cohort_band=cut(cohort, seq(1905, 2015, 10), right=FALSE, dig.lab = 5 )) %>% 
+  group_by(cohort_band, Country, Cause, Sex, Year) %>% 
+  summarise(Dx_smt1D=sum(Dx_smt1D), Ex=sum(Ex)) %>% 
+  ungroup() %>% 
+  mutate(mx_smt1D=Dx_smt1D*100000/Ex, 
+         bandstart=as.numeric(substr(cohort_band, 2, 5)),
+         age=Year-bandstart+5) 
+
+midlife_cohort2 <- cohort2 %>% 
+  filter(age>=35 & age<65)
+
+agg_png("Outputs/DoDCohortAlcohol10.png", units="in", width=10, height=7, res=500)
+ggplot(midlife_cohort2 %>% filter(Cause=="Alcohol"), 
+       aes(x=age, y=mx_smt1D, group=cohort_band, colour=cohort_band))+
+  geom_line()+
+  scale_x_continuous(name="Age")+
+  scale_y_continuous(name="Deaths per 100,000")+
+  facet_grid(Sex~Country)+
+  scale_colour_paletteer_d("lisa::OskarSchlemmer", direction=-1, name="Birth cohort")+
+  theme_classic()+
+  theme(panel.spacing=unit(2, "lines"), strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)), 
+        plot.title=element_text(face="bold", size=rel(1.5)),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+        text=element_text(family="Lato"), plot.title.position="plot",
+        plot.caption.position = "plot")+
+  labs(title="Cohort effects in alcohol deaths")
+dev.off()
+
+agg_png("Outputs/DoDCohortDrugs10.png", units="in", width=10, height=7, res=500)
+ggplot(midlife_cohort2 %>% filter(Cause=="Drugs"), 
+       aes(x=age, y=mx_smt1D, group=cohort_band, colour=cohort_band))+
+  geom_line()+
+  scale_x_continuous(name="Age")+
+  scale_y_continuous(name="Deaths per 100,000")+
+  facet_grid(Sex~Country)+
+  scale_colour_paletteer_d("lisa::OskarSchlemmer", direction=-1, name="Birth cohort")+
+  theme_classic()+
+  theme(panel.spacing=unit(2, "lines"), strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)), 
+        plot.title=element_text(face="bold", size=rel(1.5)),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+        text=element_text(family="Lato"), plot.title.position="plot",
+        plot.caption.position = "plot")+
+  labs(title="Cohort effects in drug deaths")
+dev.off()
+
+agg_png("Outputs/DoDCohortSuicide10.png", units="in", width=10, height=7, res=500)
+ggplot(midlife_cohort2 %>% filter(Cause=="Suicide"), 
+       aes(x=age, y=mx_smt1D, group=cohort_band, colour=cohort_band))+
+  geom_line()+
+  scale_x_continuous(name="Age")+
+  scale_y_continuous(name="Deaths per 100,000")+
+  facet_grid(Sex~Country)+
+  scale_colour_paletteer_d("lisa::OskarSchlemmer", direction=-1, name="Birth cohort")+
+  theme_classic()+
+  theme(panel.spacing=unit(2, "lines"), strip.background=element_blank(),
+        strip.text=element_text(face="bold", size=rel(1)), 
+        plot.title=element_text(face="bold", size=rel(1.5)),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+        text=element_text(family="Lato"), plot.title.position="plot",
+        plot.caption.position = "plot")+
+  labs(title="Cohort effects in suicide deaths")
 dev.off()
 
 ##################
