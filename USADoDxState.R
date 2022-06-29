@@ -23,37 +23,32 @@ theme_custom <- function() {
           legend.title=element_text(colour="Grey20"))
 }
 
-Alc <- read.csv("Data/CDC Data/CDCWonderAlc1920xCounty.txt", sep="\t") %>% 
+Alc <- read.csv("Data/CDC Data/CDCWonderAlc1920xState.txt", sep="\t") %>% 
   mutate(Cause="Alcohol")
 
-Drg <- read.csv("Data/CDC Data/CDCWonderDrg1920xCounty.txt", sep="\t")%>% 
-  mutate(Cause="Drugs")
+Drg <- read.csv("Data/CDC Data/CDCWonderDrg1920xState.txt", sep="\t")%>% 
+  mutate(Cause="Drugs", Crude.Rate=as.numeric(Crude.Rate), Age.Adjusted.Rate=as.numeric(Age.Adjusted.Rate))
 
-Scd <- read.csv("Data/CDC Data/CDCWonderScd1920xCounty.txt", sep="\t")%>% 
-  mutate(Cause="Suicide")
+Scd <- read.csv("Data/CDC Data/CDCWonderScd1920xState.txt", sep="\t")%>% 
+  mutate(Cause="Suicide", Crude.Rate=as.numeric(Crude.Rate), Age.Adjusted.Rate=as.numeric(Age.Adjusted.Rate))
 
 data <- bind_rows(Alc, Drg, Scd) %>% 
-  filter(Notes=="") %>% 
-  mutate(Deaths=if_else(Deaths %in% c("Suppressed", "Missing"), NA_real_, as.numeric(Deaths)),
-         Population=if_else(Population %in% c("Suppressed", "Missing"), NA_real_, as.numeric(Population)),
-         Crude.Rate2=Deaths*100000/Population)
+  filter(Notes=="") 
 
 #Download shapefile
-#shapefile <- counties(resolution="500k")
-shapeurl <- "https://www2.census.gov/geo/tiger/GENZ2020/shp/cb_2020_us_county_5m.zip"
-tempshape <- tempfile()
-tempshape2 <- tempfile()
-tempshape <- curl_download(url=shapeurl, destfile=tempshape, quiet=FALSE, mode="wb")
-unzip(zipfile=tempshape, exdir=tempshape2)
+stateshapeurl <- "https://www2.census.gov/geo/tiger/GENZ2020/shp/cb_2020_us_state_5m.zip"
+tempshape3 <- tempfile()
+tempshape4 <- tempfile()
+tempshape3 <- curl_download(url=stateshapeurl, destfile=tempshape3, quiet=FALSE, mode="wb")
+unzip(zipfile=tempshape3, exdir=tempshape4)
 
 #The actual shapefile has a different name each time you download it, so need to fish the name out of the unzipped file
-name <- list.files(tempshape2, pattern=".shp")[1]
-shapefile <- st_read(file.path(tempshape2, name)) %>% 
-  mutate(County.Code=as.numeric(GEOID))
+name2 <- list.files(tempshape4, pattern=".shp")[1]
+stateshapefile <- st_read(file.path(tempshape4, name2))
 
-mapdata <- left_join(shapefile, data)
+mapdata <- left_join(stateshapefile, data, by=c("NAME"="State"))
 
-ggplot(mapdata %>% filter(!is.na(Cause)), aes(geometry=geometry, fill=Crude.Rate2))+
+ggplot(mapdata %>% filter(Year>=2019), aes(geometry=geometry, fill=Age.Adjusted.Rate))+
   geom_sf()+
   scale_fill_paletteer_c("viridis::inferno", direction=-1, limits=c(0,NA))+
   facet_wrap(Year~Cause)+
