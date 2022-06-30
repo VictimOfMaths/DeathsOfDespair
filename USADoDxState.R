@@ -24,20 +24,26 @@ theme_custom <- function() {
           legend.title=element_text(colour="Grey20"))
 }
 
+#Read in deaths of despair data from 2010-2020 from CDC wonder database
+#Cause definitions adapted slightly from Masters et al
+#Alcohol F10, K70, K73, K74, X45, Y15
 Alc <- read.csv("Data/CDC Data/CDCWonderAlc1920xState.txt", sep="\t") %>% 
   mutate(Cause="Alcohol")
 
+#Drugs F11-16, F18, F19, X40-44, Y10-14
 Drg <- read.csv("Data/CDC Data/CDCWonderDrg1920xState.txt", sep="\t")%>% 
   mutate(Cause="Drugs", Crude.Rate=as.numeric(Crude.Rate), Age.Adjusted.Rate=as.numeric(Age.Adjusted.Rate))
 
+#Suicide U03, X60-84, Y87
 Scd <- read.csv("Data/CDC Data/CDCWonderScd1920xState.txt", sep="\t")%>% 
   mutate(Cause="Suicide", Crude.Rate=as.numeric(Crude.Rate), Age.Adjusted.Rate=as.numeric(Age.Adjusted.Rate))
 
+#Stick data together and calculate year-on-year changes
 data <- bind_rows(Alc, Drg, Scd) %>% 
   filter(Notes=="") %>% 
   group_by(State, Cause) %>% 
   mutate(abschange=Age.Adjusted.Rate-lag(Age.Adjusted.Rate, 1),
-         relchange=abschange/Age.Adjust.Rate)
+         relchange=abschange/Age.Adjusted.Rate)
 
 agg_tiff("Outputs/USDoDxStateTiles.tiff", units="in", width=12, height=9, res=500)
 ggplot(data, aes(x=Year, y=fct_rev(State), fill=Age.Adjusted.Rate))+
@@ -52,14 +58,19 @@ ggplot(data, aes(x=Year, y=fct_rev(State), fill=Age.Adjusted.Rate))+
        caption="Data from CDC WONDER | Plot by @VictimOfMaths")
 dev.off()
 
+agg_tiff("Outputs/USDoDxStateChangeTiles.tiff", units="in", width=12, height=9, res=500)
 ggplot(data %>% filter(Year>2010), aes(x=Year, y=fct_rev(State), fill=relchange))+
   geom_tile()+
   scale_x_continuous(breaks=c(2010, 2015, 2020))+
   scale_y_discrete(name="")+
-  scale_fill_paletteer_c(name="Age-adjusted\ndeaths per 100,000", "pals::kovesi.diverging_gwr_55_95_c38", 
-                         limit=c(-1,1)*max(abs(data$relchange)))+
+  scale_fill_paletteer_c(name="Age-adjusted\ndeaths per 100,000", "pals::ocean.curl", 
+                         limit=c(-1,1)*max(abs(data$relchange), na.rm=TRUE), labels=label_percent(accuracy=1))+
   facet_wrap(~Cause)+
-  theme_custom()
+  theme_custom()+
+  labs(title="2020 was a bad year for drug and alcohol deaths in the US",
+       subtitle="Relative change in deaths attributable to alcohol, drugs or suicide in US states between 2019 and 2020",
+       caption="Data from CDC WONDER | Plot by @VictiOfMaths")
+dev.off()
 
 #Download shapefile
 stateshapeurl <- "https://www2.census.gov/geo/tiger/GENZ2020/shp/cb_2020_us_state_5m.zip"
