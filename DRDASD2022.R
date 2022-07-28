@@ -11,6 +11,7 @@ library(ggtext)
 library(ggrepel)
 library(scales)
 library(readODS)
+library(geomtextpath)
 
 theme_custom <- function() {
   theme_classic() %+replace%
@@ -278,7 +279,7 @@ ggdraw(DRDfull)
 dev.off()
 
 ###################################
-#TODO - fix everything below this line - new ASD data for Scotland out on 4th August
+#TODO - update this ASD plot - new ASD data for Scotland out on 4th August
 
 data_asd <- data.s %>% filter(cause=="ASD")
 
@@ -487,41 +488,47 @@ dev.off()
 
 #############################################################################
 #DRDs by sex
-DRD.sex <- read_excel(rawdata, sheet="4 - sex and age", range="D20:E36", col_names=FALSE) %>% 
-  mutate(year=2004:2020) %>% 
-  gather(sex, deaths, c(1,2)) %>% 
-  mutate(sex=if_else(sex=="...1", "Male", "Female"))
+DRD.sex.m <- read_excel(rawdata, sheet="4 - sex and age", range="A30:B51", col_names=FALSE) %>% 
+  set_names("year", "deaths") %>% 
+  mutate(sex="Male")
 
-lab.f <- DRD.sex$deaths[DRD.sex$sex=="Female" & DRD.sex$year==2020]/DRD.sex$deaths[DRD.sex$sex=="Female" & DRD.sex$year==2004]
-lab.m <- DRD.sex$deaths[DRD.sex$sex=="Male" & DRD.sex$year==2020]/DRD.sex$deaths[DRD.sex$sex=="Male" & DRD.sex$year==2004]
+DRD.sex.f <- read_excel(rawdata, sheet="4 - sex and age", range="A54:B75", col_names=FALSE) %>% 
+  set_names("year", "deaths") %>% 
+  mutate(sex="Female")
+
+DRD.sex <- bind_rows(DRD.sex.m, DRD.sex.f)
+
+lab.f <- DRD.sex$deaths[DRD.sex$sex=="Female" & DRD.sex$year==2021]/DRD.sex$deaths[DRD.sex$sex=="Female" & DRD.sex$year==2000]
+lab.m <- DRD.sex$deaths[DRD.sex$sex=="Male" & DRD.sex$year==2021]/DRD.sex$deaths[DRD.sex$sex=="Male" & DRD.sex$year==2000]
 
 lab.f <- paste0("+",round(lab.f*100,0),"%")
 lab.m <- paste0("+",round(lab.m*100,0),"%")
 
 tiff("Outputs/DRDScotxSex.tiff", units="in", width=9, height=6.6, res=500)
 ggplot(DRD.sex)+
-  geom_line(aes(x=year, y=deaths, colour=sex), show.legend=FALSE)+
-  scale_x_continuous(name="", breaks=c(2004:2020))+
+  geom_textline(aes(x=year, y=deaths, colour=sex, label=sex), show.legend=FALSE)+
+  scale_x_continuous(name="")+
   scale_y_continuous(name="Annual drug-related deaths", limits=c(0,NA))+
   scale_colour_manual(name="", values=c("#00cc99", "#6600cc"))+
   theme_custom()+
   theme(plot.subtitle=element_markdown())+
   labs(title="Women have seen a bigger relative increase in drug-related deaths in Scotland",
-       subtitle="Since 2004, drug-related deaths <span style='color:#00cc99;'>in women</span> have increased more than fivefold, while they have trebled <span style='color:#6600cc;'>in men</span>",
+       subtitle="Since 2000, drug-related deaths <span style='color:#00cc99;'>in women</span> have increased more than fivefold, while they have trebled <span style='color:#6600cc;'>in men</span>",
        caption="Data from National Records of Scotland | Plot by @VictimOfMaths")+
-  annotate("text", x=2020, y=900, label=lab.m)+
-  annotate("text", x=2020, y=410, label=lab.f)
+  annotate("text", x=2021, y=900, label=lab.m)+
+  annotate("text", x=2021, y=430, label=lab.f)
 dev.off()
 
 ###############################################################################
 #DRDs by drug type
-DRD.drg <- read_excel(rawdata, sheet="3 - drugs reported", range="A26:R38", col_names=FALSE) %>% 
+DRD.drg <- read_excel(rawdata, sheet="3 - drugs reported", range="A22:R35", col_names=FALSE) %>% 
   gather(drug, deaths, c(3:18)) %>% 
   rename(year=`...1`, total=`...2`) %>% 
   mutate(drug=case_when(
-    drug=="...3" ~ "Heroin/morphine",
-    drug=="...4" ~ "Methadone",
-    drug %in% c("...6", "...7") ~ "Codeine/Dihydrocodeine",
+    drug=="...4" ~ "Heroin/morphine",
+    drug=="...5" ~ "Methadone",
+    drug=="...6" ~ "Bupenorphine",
+    drug %in% c("...7", "...8") ~ "Codeine/Dihydrocodeine",
     drug=="...10" ~ "'Prescribable' benzodiazepine",
     drug=="...12" ~ "'Street' benzodiazepine",
     drug=="...14" ~ "Gabapentin/Pregabalin",
@@ -533,23 +540,23 @@ DRD.drg <- read_excel(rawdata, sheet="3 - drugs reported", range="A26:R38", col_
   mutate(deathprop=deaths/total,
          drug=factor(drug, levels=c("Heroin/morphine", "Methadone", "'Prescribable' benzodiazepine",
                                     "'Street' benzodiazepine", "Codeine/Dihydrocodeine",
-                                    "Gabapentin/Pregabalin", "Cocaine")))
+                                    "Gabapentin/Pregabalin", "Cocaine", "Bupenorphine")))
 
 #Plot of totals
 tiff("Outputs/DRDScotxDrugAbs.tiff", units="in", width=9, height=6, res=500)
 ggplot()+
   geom_line(data=DRD.drg, aes(x=year, y=deaths, colour=drug), show.legend=FALSE)+
-  geom_text_repel(data=DRD.drg %>% filter(year==2020),aes(color=drug, label=drug, x=year, y=deaths),
-                  show.legend=FALSE, family="Lato", xlim=(c(2020.1, NA)), segment.color = NA)+
-  scale_x_continuous(name="", breaks=c(2008:2020), limits=c(2008, 2020))+
+  geom_text_repel(data=DRD.drg %>% filter(year==2021),aes(color=drug, label=drug, x=year, y=deaths),
+                  show.legend=FALSE, family="Lato", xlim=(c(2021.1, NA)), segment.color = NA)+
+  scale_x_continuous(name="", limits=c(2008, 2021))+
   scale_y_continuous(name="Deaths reported as involving...")+
   scale_colour_paletteer_d("LaCroixColoR::paired")+
   coord_cartesian(clip = 'off') +
   theme_custom()+
   theme(plot.margin = unit(c(1,10,1,1), "lines"),
         plot.subtitle=element_markdown())+
-  labs(title="Most drug types are involved in an increasing number of deaths",
-       subtitle="Deaths involving <span style='color:#C70E7B;'>opiates</span>/<span style='color:#FC6882;'>opiods</span>, <span style='color:#54BCD1;'>'street' benzodiazepine</span>, <span style='color:#F4B95A;'>Gapanentin/Pregablin</span> and <span style='color:#009F3F;'>cocaine</span> are all rising",
+  labs(title="Drug deaths in 2021 fell for the drugs involved in most deaths",
+       subtitle="Deaths involving <span style='color:#C70E7B;'>opiates</span>/<span style='color:#FC6882;'>opiods</span>, <span style='color:#54BCD1;'>'street' benzodiazepine</span>, <span style='color:#F4B95A;'>Gapanentin/Pregablin</span> and <span style='color:#009F3F;'>cocaine</span> all fell",
        caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
 dev.off()
 
@@ -557,9 +564,9 @@ dev.off()
 tiff("Outputs/DRDScotxDrugProp.tiff", units="in", width=9, height=6.6, res=500)
 ggplot()+
   geom_line(data=DRD.drg, aes(x=year, y=deathprop, colour=drug), show.legend=FALSE)+
-  geom_text_repel(data=DRD.drg %>% filter(year==2020),aes(color=drug, label=drug, x=year, y=deathprop),
-                  show.legend=FALSE, family="Lato", xlim=(c(2020.1, NA)), segment.color = NA)+
-  scale_x_continuous(name="", breaks=c(2008:2020))+
+  geom_text_repel(data=DRD.drg %>% filter(year==2021),aes(color=drug, label=drug, x=year, y=deathprop),
+                  show.legend=FALSE, family="Lato", xlim=(c(2021.1, NA)), segment.color = NA)+
+  scale_x_continuous(name="", breaks=c(2008:2021))+
   scale_y_continuous(name="Proportion of all drug-related deaths which involve...",
                      labels = scales::percent_format(accuracy = 2))+
   scale_colour_paletteer_d("LaCroixColoR::paired")+
@@ -568,19 +575,20 @@ ggplot()+
   theme(plot.margin = unit(c(1,10,1,1), "lines"),
         plot.title=element_markdown(),
         plot.subtitle=element_markdown())+
-  labs(title="Deaths involving <span style='color:#54BCD1;'>'street' benzodiazepine</span> have exploded since 2015",
-       subtitle="While the proportion involving <span style='color:#F4B95A;'>Gabapentin/Pregablin</span> or <span style='color:#009F3F;'>cocaine</span> is also rising, but more slowly",
+  labs(title="Deaths involving <span style='color:#54BCD1;'>'street' benzodiazepine </span> have exploded since 2015",
+       subtitle="While the proportion involving <span style='color:#F4B95A;'>Gabapentin/Pregablin</span> or <span style='color:#009F3F;'>cocaine</span> has also risen, but more slowly",
        caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
 dev.off()
 
 #And by age
-DRD.drg.age <- read_excel(rawdata, sheet="6 - sex, age and drugs", range="A19:R23", col_names=FALSE) %>% 
+DRD.drg.age <- read_excel(rawdata, sheet="6 - sex, age and drugs", range="A16:R20", col_names=FALSE) %>% 
   gather(drug, deaths, c(3:18)) %>% 
   rename(age=`...1`, total=`...2`) %>% 
   mutate(drug=case_when(
-    drug=="...3" ~ "Heroin/morphine",
-    drug=="...4" ~ "Methadone",
-    drug %in% c("...6", "...7") ~ "Codeine/Dihydrocodeine",
+    drug=="...4" ~ "Heroin/morphine",
+    drug=="...5" ~ "Methadone",
+    drug=="...6" ~ "Bupenorphine",
+    drug %in% c("...7", "...8") ~ "Codeine/Dihydrocodeine",
     drug=="...10" ~ "'Prescribable' benzodiazepine",
     drug=="...12" ~ "'Street' benzodiazepine",
     drug=="...14" ~ "Gabapentin/Pregabalin",
@@ -592,7 +600,7 @@ DRD.drg.age <- read_excel(rawdata, sheet="6 - sex, age and drugs", range="A19:R2
   mutate(deathprop=deaths/total,
          drug=factor(drug, levels=c("Heroin/morphine", "Methadone", "'Prescribable' benzodiazepine",
                                     "'Street' benzodiazepine", "Codeine/Dihydrocodeine",
-                                    "Gabapentin/Pregabalin", "Cocaine")),
+                                    "Gabapentin/Pregabalin", "Cocaine", "Bupenorphine")),
          age=factor(age, levels=c("Under 25", "25-34", "35-44", "45-54", "55 and over"))) %>% 
   group_by(drug) %>% 
   mutate(drugtot=sum(deaths)) %>% 
@@ -601,12 +609,8 @@ DRD.drg.age <- read_excel(rawdata, sheet="6 - sex, age and drugs", range="A19:R2
 
 tiff("Outputs/DRDScotxAgexDrugProp.tiff", units="in", width=9, height=6.6, res=500)
 ggplot()+
-  geom_line(data=DRD.drg.age, aes(x=age, y=deathprop, group=drug, colour=drug), show.legend=FALSE)+
-  geom_text_repel(data=DRD.drg.age %>% filter(age=="55 and over"),
-                  aes(color=drug, label=drug, x=age, y=deathprop),
-                  show.legend=FALSE, family="Lato",segment.color = NA, direction="y",
-                  hjust=0)+
-  scale_x_discrete(name="",)+
+  geom_textline(data=DRD.drg.age, aes(x=age, y=deathprop, group=drug, colour=drug, label=drug), show.legend=FALSE)+
+  scale_x_discrete(name="")+
   scale_y_continuous(name="Proportion of all drug-related deaths which involve...",
                      labels = scales::percent_format(accuracy = 2))+
   scale_colour_paletteer_d("LaCroixColoR::paired")+
@@ -614,7 +618,7 @@ ggplot()+
   theme_custom()+
   theme(plot.margin = unit(c(1,10,1,1), "lines"),
         plot.title=element_markdown())+
-  labs(title="<span style='color:#009F3F;'>Cocaine</span> is implicated in a greater proportion of deaths in younger age groups",
+  labs(title="<span style='color:#009F3F;'>Cocaine </span> is implicated in a greater proportion of deaths in younger age groups",
        subtitle="Other drugs are more likely to be involved in deaths at older ages",
        caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
 dev.off()
@@ -626,7 +630,7 @@ ggplot(DRD.drg.age, aes(x=deathprop2, y=drug, fill=age))+
   scale_x_continuous(name="Proportion of all drug-related deaths involving...",label=label_percent(accuracy=1))
 
 tiff("Outputs/DRDScotxAgexDrugProp2.tiff", units="in", width=9, height=6.6, res=500)
-ggplot(DRD.drg.age, aes(x=deathprop, y=drug, fill=drug))+
+ggplot(DRD.drg.age, aes(x=deathprop, y=fct_rev(drug), fill=drug))+
   geom_col(position="dodge", show.legend=FALSE)+
   theme_custom()+
   scale_fill_paletteer_d("LaCroixColoR::paired")+
@@ -636,13 +640,14 @@ ggplot(DRD.drg.age, aes(x=deathprop, y=drug, fill=drug))+
   facet_wrap(~age)+
   theme(plot.title=element_markdown(), plot.subtitle=element_markdown())+
   labs(title="In all age groups in Scotland,  <span style='color:#54BCD1;'>'street' benzos</span> are involved in the most deaths",
-       subtitle="But in younger age groups, <span style='color:#009F3F;'>Cocaine</span> is also involved in a substantial proportion of drug-related deaths.<br>Deaths can (and often do) involve multiple drugs, so proportions within each age group sum to more than one.")
+       subtitle="But in younger age groups, <span style='color:#009F3F;'>Cocaine</span> is also involved in a substantial proportion of drug-related deaths.<br>Deaths can (and often do) involve multiple drugs, so proportions within each age group sum to more than one.<br>")
+
 dev.off()
 
 ####################################################################
 #DRDs in Scotland by ICD-10 codes
-DRD.cause <- read_excel(rawdata, sheet="2 - causes", range="C39:E48", col_names=FALSE) %>% 
-  mutate(year=c(2011:2020)) %>% 
+DRD.cause <- read_excel(rawdata, sheet="2 - causes", range="C22:E32", col_names=FALSE) %>% 
+  mutate(year=c(2011:2021)) %>% 
   gather(cause, deaths, c(1:3)) %>% 
   mutate(cause=case_when(
     cause=="...1" ~ "Drug abuse",
@@ -652,7 +657,7 @@ DRD.cause <- read_excel(rawdata, sheet="2 - causes", range="C39:E48", col_names=
 tiff("Outputs/DRDScotxCause.tiff", units="in", width=9, height=6.6, res=500)
 ggplot(DRD.cause)+
   geom_line(aes(x=year, y=deaths, colour=cause), show.legend=FALSE)+
-  scale_x_continuous(name="", breaks=c(2011:2020))+
+  scale_x_continuous(name="", breaks=c(2011:2021))+
   scale_y_continuous(name="Annual drug-related deaths")+
   scale_colour_paletteer_d("colorblindr::OkabeIto")+
   theme_custom()+
@@ -664,11 +669,11 @@ dev.off()
 
 #################################################################################
 #DRDs in Scotland by deprivation
-DRD.SIMD <- read_excel(rawdata, sheet="12 - SIMD Deciles", range="F9:AS28", col_names=FALSE) %>% 
+DRD.SIMD <- read_excel(rawdata, sheet="12 - SIMD Deciles", range="F9:AS29", col_names=FALSE) %>% 
   select(`...1`, `...5`, `...9`, `...13`, `...17`, `...21`, `...25`, `...29`, `...33`, `...37`) %>% 
   set_names(c("SIMD10 (most deprived)", "SIMD9", "SIMD8", "SIMD7", "SIMD6", "SIMD5", "SIMD4", "SIMD3",
               "SIMD2", "SIMD1 (least deprived)")) %>% 
-  mutate(year=2001:2020,
+  mutate(year=2001:2021,
          SIMD2=as.numeric(SIMD2), `SIMD1 (least deprived)`=as.numeric(`SIMD1 (least deprived)`)) %>% 
   gather(SIMD, DRD.rate, c(1:10)) %>% 
   mutate(SIMD=factor(SIMD, levels=c("SIMD10 (most deprived)", "SIMD9", "SIMD8", "SIMD7", "SIMD6", "SIMD5", "SIMD4", "SIMD3",
@@ -681,8 +686,8 @@ DRD.SIMD <- read_excel(rawdata, sheet="12 - SIMD Deciles", range="F9:AS28", col_
 tiff("Outputs/DRDScotxSIMD.tiff", units="in", width=9, height=6.6, res=500)
 ggplot()+
   geom_line(data=DRD.SIMD, aes(x=year, y=DRD.rate, group=SIMD, colour=SIMD), show.legend=FALSE)+
-  geom_text_repel(data=DRD.SIMD %>% filter(year==2020), aes(x=year, y=DRD.rate, label=label, colour=SIMD),
-                  family="Lato", xlim=(c(2020.1, NA)), segment.color = NA, show.legend=FALSE)+
+  geom_text_repel(data=DRD.SIMD %>% filter(year==2021), aes(x=year, y=DRD.rate, label=label, colour=SIMD),
+                  family="Lato", xlim=(c(2021.1, NA)), segment.color = NA, show.legend=FALSE)+
   scale_x_continuous(name="")+
   scale_y_continuous(name="Age-standardised rate of drug-related deaths per 100,000")+
   scale_colour_manual(values=c("#2d004b", "#542788", "#8073ac", "#b2abd2", "#d8daeb",
@@ -690,15 +695,15 @@ ggplot()+
   theme_custom()+
   coord_cartesian(clip = 'off')+
   theme(plot.margin = unit(c(1,10,1,1), "lines"))+
-  labs(title="The huge rise in Scottish drug-related deaths is largely in the most deprived groups",
+  labs(title="Drug-related deaths in Scotland are *incredibly* unequal",
        subtitle="Age-standardised rates of drug-related deaths by decile of the Scottish Index of Multiple Deprivation.\nValues based on fewer than 10 deaths are censored.",
        caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
 dev.off()  
 
 #################################################################################
 #DRDs in Scotland by HB
-DRD.HB <- read_excel(rawdata, sheet="HB1 - summary", range="A14:L27", col_names=FALSE) %>% 
-  gather(year, deaths, c(2:12)) %>% 
+DRD.HB <- read_excel(rawdata, sheet="HB1 - summary", range="A5:M19", col_names=FALSE) %>% 
+  gather(year, deaths, c(2:13)) %>% 
   rename(HB="...1") %>% 
   mutate(year=as.numeric(substr(year, 4,5))+2008,
          HB=str_replace(HB, "&", "and"),
@@ -706,24 +711,20 @@ DRD.HB <- read_excel(rawdata, sheet="HB1 - summary", range="A14:L27", col_names=
 
 #Bring in populations
 temp <- tempfile()
-source <- "https://www.nrscotland.gov.uk/files//statistics/population-estimates/mid-20/mid-year-pop-est-20-time-series-4.xlsx"
+source <- "https://www.nrscotland.gov.uk/files//statistics/population-estimates/mid-21/mid-year-pop-est-21-time-series-data.xlsx"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
-HBpop <- read_excel(temp, range=c("B6:AP19"), col_names=FALSE) %>% 
-  gather(year, pop, c(2:41)) %>% 
-  rename(HB="...1") %>% 
-  mutate(year=as.numeric(substr(year, 4,5))+1979)
+HBpop <- read_excel(temp, sheet="Table_2", range="B7:E1851", col_names=FALSE) %>% 
+  set_names("HB", "sex", "year", "pop") %>% 
+  filter(sex=="Persons" & year>=2010)
 
-DRD.HB <- merge(DRD.HB, HBpop, all.x=TRUE)
-
-DRD.HB <- DRD.HB %>% 
-  mutate(mortrate=deaths*100000/pop) %>% 
-  group_by(HB)
+DRD.HB <- merge(DRD.HB, HBpop, all.x=TRUE) %>% 
+  mutate(mortrate=deaths*100000/pop)
 
 tiff("Outputs/DRDScotxHB.tiff", units="in", width=9, height=6.6, res=500)
-ggplot(DRD.HB)+
+ggplot(DRD.HB %>% filter(HB!="Scotland"))+
   geom_line(aes(x=year, y=mortrate, colour=HB), show.legend=FALSE)+
-  scale_x_continuous(name="", breaks=c(2010:2020))+
+  scale_x_continuous(name="", breaks=c(2010:2021))+
   scale_y_continuous(name="Drug-related deaths per 100,000")+
   scale_colour_manual(values=c(rep("Grey70", 6), "#c51b8a", rep("Grey70", 7)))+
   theme_custom()+
@@ -734,14 +735,15 @@ ggplot(DRD.HB)+
 dev.off()
 
 #DRDs in Scotland by HB and drug
-DRD.HB.drg <- read_excel(rawdata, sheet="HB3 - drugs implicated", range="A17:R30", col_names=FALSE) %>% 
+DRD.HB.drg <- read_excel(rawdata, sheet="HB3 - drugs implicated", range="A16:R29", col_names=FALSE) %>% 
   gather(drug, deaths, c(3:18)) %>% 
   rename(HB="...1", total="...2") %>% 
   filter(total>=20) %>% 
   mutate(drug=case_when(
-    drug=="...3" ~ "Heroin/morphine",
-    drug=="...4" ~ "Methadone",
-    drug %in% c("...6", "...7") ~ "Codeine/Dihydrocodeine",
+    drug=="...4" ~ "Heroin/morphine",
+    drug=="...5" ~ "Methadone",
+    drug=="...6" ~ "Bupenorphine",
+    drug %in% c("...7", "...8") ~ "Codeine/Dihydrocodeine",
     drug=="...10" ~ "'Prescribable' benzodiazepine",
     drug=="...12" ~ "'Street' benzodiazepine",
     drug=="...14" ~ "Gabapentin/Pregabalin",
@@ -753,7 +755,7 @@ DRD.HB.drg <- read_excel(rawdata, sheet="HB3 - drugs implicated", range="A17:R30
   mutate(deathprop=deaths/total,
          drug=factor(drug, levels=c("Heroin/morphine", "Methadone", "'Prescribable' benzodiazepine",
                                     "'Street' benzodiazepine", "Codeine/Dihydrocodeine",
-                                    "Gabapentin/Pregabalin", "Cocaine")))
+                                    "Gabapentin/Pregabalin", "Cocaine", "Bupenorphine")))
 
 tiff("Outputs/DRDScotxHBxdrug.tiff", units="in", width=10, height=8, res=500)
 ggplot(DRD.HB.drg)+
