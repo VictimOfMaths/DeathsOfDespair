@@ -16,6 +16,7 @@ library(geomtextpath)
 library(fingertipsR)
 library(jsonlite)
 library(paletteer)
+library(gtools)
 
 theme_custom <- function() {
   theme_classic() %+replace%
@@ -925,7 +926,7 @@ Groups <- st_read(ltla, layer="2 Groups")
 Group_labels <- st_read(ltla, layer="1 Group labels") %>% 
   mutate(just=if_else(LabelPosit=="Left", 0, 1))
 
-agg_tiff("Outputs/ASDCartogramUK.tiff", units="in", width=8, height=9, res=500)
+agg_tiff("Outputs/ASDCartogramUK.tiff", units="in", width=7, height=9, res=500)
 ggplot()+
   geom_sf(data=Background, aes(geometry=geom), fill="White")+
   geom_sf(data=ltlarates, aes(geometry=geom, fill=ASD), colour="Black", size=0.1)+
@@ -941,12 +942,12 @@ ggplot()+
   guides(fill = guide_colorbar(title.position = 'top', title.hjust = .5,
                                barwidth = unit(20, 'lines'), barheight = unit(.5, 'lines')))+
   labs(title="Alcohol-specific deaths in the UK",
-       subtitle="Age-standardised mortality rates for causes that are 100% attributable to alcohol.\nGrey areas have too few deaths to robustly calculate these rates.\n",
+       subtitle="Age-standardised mortality rates for causes that are 100% attributable to alcohol.\nGrey areas have too few deaths to robustly calculate these rates.\nData reflects latest available figures for each country.\n",
        caption="Data from ONS, OHID, DHC Wales, NRS & NISRA, Cartogram from @carlbaker/House of Commons Library\nPlot by @VictimOfMaths")
 
 dev.off()
 
-agg_tiff("Outputs/DRDCartogramUK.tiff", units="in", width=8, height=9, res=500)
+agg_tiff("Outputs/DRDCartogramUK.tiff", units="in", width=7, height=9, res=500)
 ggplot()+
   geom_sf(data=Background, aes(geometry=geom), fill="White")+
   geom_sf(data=ltlarates, aes(geometry=geom, fill=DRD), colour="Black", size=0.1)+
@@ -962,7 +963,7 @@ ggplot()+
   guides(fill = guide_colorbar(title.position = 'top', title.hjust = .5,
                                barwidth = unit(20, 'lines'), barheight = unit(.5, 'lines')))+
   labs(title="Drug-related deaths in the UK",
-       subtitle="Age-standardised mortality rates for drug misuse deaths.\nGrey areas have too few deaths to robustly calculate these rates.\n",
+       subtitle="Age-standardised mortality rates for drug misuse deaths.\nGrey areas have too few deaths to robustly calculate these rates.\nData reflects latest available figures for each country\n",
        caption="Data from ONS, NRS & NISRA, Cartogram from @carlbaker/House of Commons Library\nPlot by @VictimOfMaths")
 
 dev.off()
@@ -1020,7 +1021,7 @@ ggplot(map.data, aes(geometry=geometry, fill=ASD))+
   guides(fill = guide_colorbar(title.position = 'top', title.hjust = .5,
                                barwidth = unit(20, 'lines'), barheight = unit(.5, 'lines')))+
   labs(title="Alcohol-specific deaths in the UK",
-       subtitle="Age-standardised mortality rates for causes that are 100% attributable to alcohol.\nGrey areas have too few deaths to robustly calculate these rates.\n",
+       subtitle="Age-standardised mortality rates for causes that are 100% attributable to alcohol.\nGrey areas have too few deaths to robustly calculate these rates.\nData reflects latest available figures for each country\n",
        caption="Data from ONS, OHID, DHC Wales, NRS & NISRA\nPlot by @VictimOfMaths")
 
 dev.off()
@@ -1037,15 +1038,13 @@ ggplot(map.data, aes(geometry=geometry, fill=DRD))+
   guides(fill = guide_colorbar(title.position = 'top', title.hjust = .5,
                                barwidth = unit(20, 'lines'), barheight = unit(.5, 'lines')))+
   labs(title="Drug-related deaths in the UK",
-       subtitle="Age-standardised mortality rates for drug misuse deaths.\nGrey areas have too few deaths to robustly calculate these rates.\n",
+       subtitle="Age-standardised mortality rates for drug misuse deaths.\nGrey areas have too few deaths to robustly calculate these rates.\nData reflects latest available figures for each country\n",
        caption="Data from ONS, NRS & NISRA\nPlot by @VictimOfMaths")
 
 dev.off()
 
 #BIVARIATE MAP
 bidata <- DRDASD %>% 
-  select(LA, code, cause, mortrate, country) %>% 
-  spread(cause, mortrate) %>% 
   #generate tertiles
   mutate(alctert=quantcut(ASD, q=3, labels=FALSE),
          drgtert=quantcut(DRD, q=3, labels=FALSE),
@@ -1084,47 +1083,60 @@ keydata <- bidata %>%
   group_by(alctert, drgtert) %>%
   summarise(RGB=unique(colour))
 
-bimap <- full_join(shapefile, bidata, by="code")
+bimap <- full_join(bind_rows(shapefile, shapefile.ni), bidata, by="Lacode")
 
 BIVAR <- ggplot(bimap)+
   geom_sf(aes(geometry=geometry, fill=colour), colour="white", size=0.01)+
-  scale_fill_identity()+ labs(title="Regional patterns in deaths from alcohol and drugs across the UK",
-                              subtitle="Comparative rates of alcohol-specific deaths and deaths from drug misuse by Local Authority",
-                              caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
+  scale_fill_identity()+ labs(title="Regional patterns in deaths from alcohol and drugs",
+                              subtitle="Comparative rates of age-standardised alcohol-specific deaths and deaths from drug misuse\nby Local Authority. White areas have too few deaths to robustly calculate these rates.",
+                              caption="Data from ONS, OHID, DHC Wales, NRS & NISRA | Plot by @VictimOfMaths\nData reflects the most recently-available figures for each jurisdiction")+
   #Highland
-  #annotate("text", x=500000, y=970000, label="Purple areas mean\nhigh rates of alcohol and \nhigh rates of drug deaths", size=3)+
-  annotate("text", x=500000, y=970000, label="Purple areas mean\nhigh rates of alcohol and \nhigh rates of drug deaths", size=3)+
+  annotate("text", x=500000, y=970000, family="Lato",
+           label="Purple areas mean\nhigh rates of alcohol and \nhigh rates of drug deaths", size=3)+
   #York
-  annotate("text", x=150000, y=290000, label="Blue areas mean\nhigh rates of alcohol and \nlow rates of drug deaths", size=3)+
+  annotate("text", x=100000, y=380000, family="Lato",
+           label="Blue areas mean\nhigh rates of alcohol and \nlow rates of drug deaths", size=3)+
   #Dumfires & galloway
-  annotate("text", x=230000, y=470000, label="Red areas mean\nlow rates of alcohol and \nhigh rates of drug deaths", size=3)+
+  annotate("text", x=550000, y=590000, family="Lato",
+           label="Red areas mean\nlow rates of alcohol and \nhigh rates of drug deaths", size=3)+
   #Dorset
-  annotate("text", x=440000, y=27000, label="Grey areas mean\nlow rates of alcohol and \nlow rates of drug deaths", size=3)+
-  geom_curve(aes(x=434000, y=955000, xend=220000, yend=850000), curvature=0.15)+
-  geom_curve(aes(x=220000, y=280000, xend=315000, yend=200000), curvature=-0.15)+
-  geom_curve(aes(x=300000, y=475000, xend=463000, yend=452000), curvature=-0.2)+
-  geom_curve(aes(x=420000, y=57000, xend=370000, yend=100000), curvature=0.1)+
-  theme_classic()+
+  annotate("text", x=440000, y=27000, family="Lato",
+           label="Grey areas mean\nlow rates of alcohol and \nlow rates of drug deaths", size=3)+
+  #Purple
+  geom_curve(aes(x=410000, y=955000, xend=220000, yend=850000), curvature=0.15)+
+  #Blue
+  geom_curve(aes(x=70000, y=420000, xend=40000, yend=500000), curvature=-0.15)+
+  #Red
+  geom_curve(aes(x=520000, y=550000, xend=463000, yend=452000), curvature=-0.2)+
+  #Grey
+  geom_curve(aes(x=420000, y=57000, xend=430000, yend=105000), curvature=0.1)+
+  theme_custom()+
   theme(axis.line=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(),
-        axis.title=element_blank(), plot.title=element_text(face="bold", size=rel(1.2)))
+        axis.title=element_blank())
 
 key <- ggplot(keydata)+
   geom_tile(aes(x=alctert, y=drgtert, fill=RGB))+
   scale_fill_identity()+
   labs(x = expression("More alcohol-specific deaths" %->%  ""),
        y = expression("More drug poisoning deaths" %->%  "")) +
-  theme_classic() +
+  theme_custom() +
   # make font small enough
   theme(
-    axis.title = element_text(size = 8),axis.line=element_blank(), 
+    axis.title = element_text(size = 8), axis.line=element_blank(), 
     axis.ticks=element_blank(), axis.text=element_blank())+
   # quadratic tiles
   coord_fixed()
 
-tiff("Outputs/ASDDRD2020BivariateUK.tiff", units="in", width=8.5, height=14, res=500)
+tiff("Outputs/ASDDRD2022BivariateUK.tiff", units="in", width=7, height=11, res=500)
 ggdraw()+
   draw_plot(BIVAR, 0,0,1,1)+
-  draw_plot(key, 0.03,0.48,0.29,0.74)
+  draw_plot(key, 0.03,0.46,0.29,0.74)
+dev.off()
+
+png("Outputs/ASDDRD2022BivariateUK.png", units="in", width=7, height=11, res=500)
+ggdraw()+
+  draw_plot(BIVAR, 0,0,1,1)+
+  draw_plot(key, 0.03,0.46,0.29,0.74)
 dev.off()
 
 #Add zoomed in areas
@@ -1184,20 +1196,20 @@ dev.off()
 
 #Further explorations of the data
 #scatter coloured by country
-tiff("Outputs/EngScotLAALcDrg.tiff", units="in", width=7, height=6, res=500)
+tiff("Outputs/ASDDRDUKLAScatter.tiff", units="in", width=7, height=6, res=500)
 ggplot(DRDASD, aes(x=ASD, y=DRD, colour=Country))+
   geom_point()+
   geom_segment(x=-10, xend=45, y=-10, yend=45, colour="Black")+
-  theme_classic()+
+  theme_custom()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)))+
-  scale_x_continuous(name="Alcohol-specific deaths per 100,000 population", limits=c(0,42))+
-  scale_y_continuous(name="Drug misuse deaths per 100,000 population", limits=c(0,42))+
+  scale_x_continuous(name="Alcohol-specific deaths per 100,000 population\n(age-standardised)", limits=c(0,42))+
+  scale_y_continuous(name="Drug misuse deaths per 100,000 population\n(age-standardised)", limits=c(0,42))+
   scale_colour_paletteer_d("fishualize::Scarus_quoyi", name="")+
-  annotate("text", x=30, y=6, label="More deaths from alcohol", colour="DarkGrey")+
-  annotate("text", x=10, y=32, label="More deaths from drugs", colour="DarkGrey")+
+  annotate("text", x=32, y=6, label="More alcohol-specific deaths", colour="DarkGrey")+
+  annotate("text", x=10, y=32, label="More drug misuse deaths", colour="DarkGrey")+
   labs(title="Deaths from alcohol and drugs by Local Authority", 
-       subtitle="Alcohol-specific and drug misuse deaths in 2016-18",
-       caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")
+       subtitle="Age-standardised rates of alcohol-specific and drug misuse deaths",
+       caption="Data from ONS, OHID, DHC Wales, NRS & NISRA | Plot by @VictimOfMaths\nData reflects the most recently-available figures for each jurisdiction")
 
 dev.off()
 
@@ -1234,10 +1246,10 @@ ggplot(DRDASD %>% filter(!is.na(ASD)), aes(x=fct_reorder(as.factor(Laname), ASD)
   theme_classic()+
   scale_colour_paletteer_d("fishualize::Scarus_quoyi", name="")+
   scale_x_discrete(name="Local Authority")+
-  scale_y_continuous(name="Alcohol-specific deaths per 100,000")+
+  scale_y_continuous(name="Alcohol-specific deaths per 100,000\n(age-standardised)")+
   labs(title="One of these countries is not like the others", 
-       subtitle="Annual deaths from alcohol-specific causes per 100,000 population across UK Local Authorities",
-       caption="Data from ONS, OHID, DHC Wales, NRS & NISRA | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
+       subtitle="Age-standardised  deaths from alcohol-specific causes per 100,000 population across UK Local Authorities",
+       caption="Data from ONS, OHID, DHC Wales, NRS & NISRA | Plot by @VictimOfMaths\nData reflects the most recently-available figures for each jurisdiction")+
   theme_custom()+
   theme(axis.text.x=element_blank(), axis.ticks.x=element_blank())
 dev.off()
@@ -1248,10 +1260,10 @@ ggplot(DRDASD %>% filter(!is.na(DRD)), aes(x=fct_reorder(as.factor(Laname), DRD)
   theme_classic()+
   scale_colour_paletteer_d("fishualize::Scarus_quoyi", name="")+
   scale_x_discrete(name="Local Authority")+
-  scale_y_continuous(name="Drug misuse deaths per 100,000")+
+  scale_y_continuous(name="Drug misuse deaths per 100,000\n(age-standardised)")+
   labs(title="One of these countries is not like the others", 
-       subtitle="Annual deaths from drug misuse per 100,000 population across UK Local Authorities",
-       caption="Data from ONS, NRS & NISRA | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
+       subtitle="Age-standardised deaths from drug misuse per 100,000 population across UK Local Authorities",
+       caption="Data from ONS, NRS & NISRA | Plot by @VictimOfMaths\nData reflects the most recently-available figures for each jurisdiction")+
   theme_custom()+
   theme(axis.text.x=element_blank(), axis.ticks.x=element_blank())
 dev.off()
