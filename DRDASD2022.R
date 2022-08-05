@@ -12,6 +12,10 @@ library(ggrepel)
 library(scales)
 library(readODS)
 library(geomtextpath)
+#remotes::install_github("rOpenSci/fingertipsR", build_vignettes = TRUE, dependencies = "suggests")
+library(fingertipsR)
+library(jsonlite)
+library(paletteer)
 
 theme_custom <- function() {
   theme_classic() %+replace%
@@ -49,21 +53,22 @@ DRD.s <- read_excel(rawdata, sheet="4 - sex and age", range="A6:G27", col_names=
                              "45-54", "55+"))) %>% 
     rename("year"="...1")
 
-#Alcohol-specific deaths by age for Scotland (only up to 2019 ATM)
+#Alcohol-specific deaths by age for Scotland 
 temp <- tempfile()
-source <- "https://www.nrscotland.gov.uk/files//statistics/alcohol-deaths/2020/alcohol-specific-deaths-20-all-tabs.xlsx"
+source <- "https://www.nrscotland.gov.uk/files//statistics/alcohol-deaths/2021/alcohol-specific-deaths-21-all-tabs.xlsx"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
-ASD.s <- read_excel(temp, sheet="Table 4", range="A7:U48", col_names=FALSE) %>% 
+ASD.s <- read_excel(temp, sheet="Table_2A", range="A6:W48", col_names=FALSE) %>% 
   mutate(cause="ASD") %>% 
-  select(-2) %>% 
-  gather(age, deaths, c(2:20)) %>% 
-  mutate(age=case_when(
-    age %in% c("...3", "...4", "...5", "...6", "...7") ~ "under 25",
-    age %in% c("...8", "...9") ~ "25-34",
-    age %in% c("...10", "...11") ~ "35-44",
-    age %in% c("...12", "...13") ~ "45-54",
-    age %in% c("...14", "...15", "...16", "...17", "...18", "...19", "...20", "...21") ~ "55+"),
+  select(-c(2,3)) %>% 
+  gather(age, deaths, c(2:21)) %>% 
+  mutate(age=as.numeric(gsub("...", "", age)),
+    age=case_when(
+      age <= 9 ~ "under 25",
+      age <= 11 ~ "25-34",
+      age <= 13 ~ "35-44",
+      age <= 15 ~ "45-54",
+      TRUE ~ "55+"),
     age=factor(age, levels=c("under 25", "25-34", "35-44",
                              "45-54", "55+"))) %>% 
   rename("year"="...1") %>% 
@@ -121,8 +126,8 @@ data.s <- bind_rows(DRD.s, ASD.s) %>%
   merge(natpop) %>% 
   mutate(mortrate=deaths*100000/pop) %>% 
   arrange(cause, age, year) %>% 
-  mutate(index=c(1:100, 1:105),
-         index2=c(1:20, 22:41, 43:62, 64:83, 85:104, 1:21, 23:43, 45:65, 67:87, 89:109))
+  mutate(index=c(1:105, 1:105),
+         index2=c(1:21, 23:43, 45:65, 67:87, 89:109, 1:21, 23:43, 45:65, 67:87, 89:109))
 
 data_drd <- data.s %>% filter(cause=="DRD")
 
@@ -279,46 +284,37 @@ ggdraw(DRDfull)
 dev.off()
 
 ###################################
-#TODO - update this ASD plot - new ASD data for Scotland out on 4th August
+#grouped path plot of ASD
 
 data_asd <- data.s %>% filter(cause=="ASD")
 
-#grouped path of ASD
-y1 <- c(0, data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2004],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2005],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2006],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2007],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2008],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2009],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2010],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2011],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2012],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2013],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2014],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2015],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2016],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2017],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2018],
-        data_asd$mortrate[data_asd$age=="under 15" & data_asd$year==2019],0)
+y1 <- c(0, data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2001],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2002],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2003],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2004],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2005],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2006],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2007],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2008],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2009],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2010],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2011],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2012],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2013],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2014],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2015],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2016],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2017],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2018],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2019],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2020],
+        data_asd$mortrate[data_asd$age=="under 25" & data_asd$year==2021],
+        0)
 
-y2 <- c(0, data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2004],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2005],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2006],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2007],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2008],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2009],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2010],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2011],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2012],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2013],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2014],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2015],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2016],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2017],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2018],
-        data_asd$mortrate[data_asd$age=="15-24" & data_asd$year==2019],0)
-
-y3 <- c(0, data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2004],
+y2 <- c(0, data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2001],
+        data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2002],
+        data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2003],
+        data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2004],
         data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2005],
         data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2006],
         data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2007],
@@ -333,9 +329,14 @@ y3 <- c(0, data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2004],
         data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2016],
         data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2017],
         data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2018],
-        data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2019],0)
-
-y4 <- c(0, data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2004],
+        data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2019],
+        data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2020],
+        data_asd$mortrate[data_asd$age=="25-34" & data_asd$year==2021],
+        0)
+y3 <- c(0, data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2001],
+        data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2002],
+        data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2003],
+        data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2004],
         data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2005],
         data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2006],
         data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2007],
@@ -350,9 +351,15 @@ y4 <- c(0, data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2004],
         data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2016],
         data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2017],
         data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2018],
-        data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2019],0)
+        data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2019],
+        data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2020],
+        data_asd$mortrate[data_asd$age=="35-44" & data_asd$year==2021],
+        0)
 
-y5 <- c(0, data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2004],
+y4 <- c(0, data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2001],
+        data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2002],
+        data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2003],
+        data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2004],
         data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2005],
         data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2006],
         data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2007],
@@ -367,67 +374,55 @@ y5 <- c(0, data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2004],
         data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2016],
         data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2017],
         data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2018],
-        data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2019],0)
+        data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2019],
+        data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2020],
+        data_asd$mortrate[data_asd$age=="45-54" & data_asd$year==2021],
+        0)
 
-y6 <- c(0, data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2004],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2005],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2006],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2007],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2008],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2009],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2010],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2011],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2012],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2013],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2014],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2015],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2016],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2017],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2018],
-        data_asd$mortrate[data_asd$age=="55-64" & data_asd$year==2019],0)
-
-y7 <- c(0, data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2004],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2005],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2006],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2007],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2008],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2009],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2010],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2011],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2012],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2013],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2014],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2015],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2016],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2017],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2018],
-        data_asd$mortrate[data_asd$age=="65+" & data_asd$year==2019],0)
+y5 <- c(0, data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2001],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2002],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2003],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2004],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2005],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2006],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2007],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2008],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2009],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2010],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2011],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2012],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2013],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2014],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2015],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2016],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2017],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2018],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2019],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2020],
+        data_asd$mortrate[data_asd$age=="55+" & data_asd$year==2021],
+        0)
 
 ASDplot <- ggplot()+
-  geom_polygon(aes(x=c(1,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,16), y=y1), fill="SkyBlue")+
-  geom_polygon(aes(x=c(17,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,32), y=y2), fill="SkyBlue")+
-  geom_polygon(aes(x=c(33,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,48), y=y3), fill="SkyBlue")+
-  geom_polygon(aes(x=c(49,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,64), y=y4), fill="SkyBlue")+
-  geom_polygon(aes(x=c(65,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,80), y=y5), fill="SkyBlue")+
-  geom_polygon(aes(x=c(81,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,96), y=y6), fill="SkyBlue")+
-  geom_polygon(aes(x=c(97,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,112), y=y7), fill="SkyBlue")+
-  geom_path(data=data_asd,aes(x=index, y=mortrate, group=age), arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
+  geom_polygon(aes(x=c(1, 1:21, 21), y=y1), fill="SkyBlue")+
+  geom_polygon(aes(x=c(23, 23:43, 43), y=y2), fill="SkyBlue")+
+  geom_polygon(aes(x=c(45, 45:65, 65), y=y3), fill="SkyBlue")+
+  geom_polygon(aes(x=c(67, 67:87, 87), y=y4), fill="SkyBlue")+
+  geom_polygon(aes(x=c(89, 89:109, 109), y=y5), fill="SkyBlue")+
+  geom_path(data=data_asd,aes(x=index2, y=mortrate, group=age), arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
   theme_custom()+
-  theme(plot.title=element_text(face="bold", size=rel(1.2)))+
-  scale_x_continuous(breaks=c(8,25,41,57,73,90,106), 
-                     labels=c("under 15", "15-24", "25-34", "35-44", "45-54",
-                              "55-64", "65+"),name="Age")+
+  scale_x_continuous(breaks=c(10,33,55,77,99), 
+                     labels=c("under 25", "25-34", "35-44", "45-54", "55+"),name="Age")+
   scale_y_continuous(name="Annual alcohol-specific deaths per 100,000")+
-  labs(title="Scotland has made significant progress in reducing alcohol-specific deaths in middle ages",
-       subtitle="Annual rates of alcohol-specific deaths by age group in Scotland 2004-2019",
+  labs(title="The pandemic has started to reverse falls in alcohol-specific deaths in older age groups",
+       subtitle="Annual rates of alcohol-specific deaths by age group in Scotland 2001-2021",
        caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
 
 ASDinset <- ggplot()+
-  geom_polygon(aes(x=c(1,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,16), 
-                   y=c(0,15,18,16,20,16,13,11,10,15,12,9,8,10,7,9,6,0)), 
+  geom_polygon(aes(x=c(1, 1:21, 21), 
+                   y=c(0,21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10,8,0)), 
                fill="SkyBlue")+
-  geom_line(aes(x=c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16), 
-                y=c(15,18,16,20,16,13,11,10,15,12,9,8,10,7,9,6)), 
+  geom_line(aes(x=c(1:21), 
+                y=c(21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10,8)), 
             arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
   theme_classic()+
   theme(axis.line=element_blank(), axis.text=element_blank(),axis.ticks=element_blank(),
@@ -435,54 +430,49 @@ ASDinset <- ggplot()+
 
 ASDfull <- ggdraw()+
   draw_plot(ASDplot)+
-  draw_plot(ASDinset, x=0.15, y=0.65, width=0.1, height=0.2)+
-  draw_label("2004", x=0.17, y=0.66, size=10)+
-  draw_label("2019", x=0.24, y=0.66, size=10)+
+  draw_plot(ASDinset, x=0.15, y=0.65, width=0.13, height=0.2)+
+  draw_label("2001", x=0.17, y=0.66, size=10)+
+  draw_label("2021", x=0.27, y=0.66, size=10)+
   draw_label("Key", x=0.18, y=0.85, size=10, fontface="bold")
 
-tiff("Outputs/ASDScot2020.tiff", units="in", width=9, height=6.6, res=500)
+tiff("Outputs/ASDScot2022.tiff", units="in", width=9, height=6.6, res=500)
 ggdraw(ASDfull)
 dev.off()
 
 #Combined plot
 combplot <- ggplot()+
-  geom_polygon(aes(x=c(1,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,17), y=x1), fill="Tomato", alpha=0.8)+
-  geom_polygon(aes(x=c(18,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,34), y=x2), fill="Tomato", alpha=0.8)+
-  geom_polygon(aes(x=c(35,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,51), y=x3), fill="Tomato", alpha=0.8)+
-  geom_polygon(aes(x=c(52,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,68), y=x4), fill="Tomato", alpha=0.8)+
-  geom_polygon(aes(x=c(69,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,85), y=x5), fill="Tomato", alpha=0.8)+
-  geom_polygon(aes(x=c(86,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,102), y=x6), fill="Tomato", alpha=0.8)+
-  geom_polygon(aes(x=c(103,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,119), y=x7), fill="Tomato", alpha=0.8)+
-  geom_path(data=data_drd,aes(x=index, y=mortrate, group=age), arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
-  geom_polygon(aes(x=c(1,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,16), y=y1), fill="SkyBlue", alpha=0.5)+
-  geom_polygon(aes(x=c(18,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,33), y=y2), fill="SkyBlue", alpha=0.6)+
-  geom_polygon(aes(x=c(35,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,50), y=y3), fill="SkyBlue", alpha=0.6)+
-  geom_polygon(aes(x=c(52,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,67), y=y4), fill="SkyBlue", alpha=0.6)+
-  geom_polygon(aes(x=c(69,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,84), y=y5), fill="SkyBlue", alpha=0.6)+
-  geom_polygon(aes(x=c(86,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,101), y=y6), fill="SkyBlue", alpha=0.6)+
-  geom_polygon(aes(x=c(103,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,118), y=y7), fill="SkyBlue", alpha=0.6)+
+  geom_polygon(aes(x=c(1, 1:21, 21), y=x1), fill="Tomato", alpha=0.8)+
+  geom_polygon(aes(x=c(23, 23:43, 43), y=x2), fill="Tomato", alpha=0.8)+
+  geom_polygon(aes(x=c(45, 45:65, 65), y=x3), fill="Tomato", alpha=0.8)+
+  geom_polygon(aes(x=c(67, 67:87, 87), y=x4), fill="Tomato", alpha=0.8)+
+  geom_polygon(aes(x=c(89, 89:109, 109), y=x5), fill="Tomato", alpha=0.8)+
+  geom_path(data=data_drd,aes(x=index2, y=mortrate, group=age), arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
+  geom_polygon(aes(x=c(1, 1:21, 21), y=y1), fill="SkyBlue", alpha=0.6)+
+  geom_polygon(aes(x=c(23, 23:43, 43), y=y2), fill="SkyBlue", alpha=0.6)+
+  geom_polygon(aes(x=c(45, 45:65, 65), y=y3), fill="SkyBlue", alpha=0.6)+
+  geom_polygon(aes(x=c(67, 67:87, 87), y=y4), fill="SkyBlue", alpha=0.6)+
+  geom_polygon(aes(x=c(89, 89:109, 109), y=y5), fill="SkyBlue", alpha=0.6)+
   geom_path(data=data_asd,aes(x=index2, y=mortrate, group=age), arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
   theme_custom()+
   theme(plot.subtitle=element_markdown())+
-  scale_x_continuous(breaks=c(9,26,43,60,77,94,111), 
-                     labels=c("under 15", "15-24", "25-34", "35-44", "45-54",
-                              "55-64", "65+"),name="Age")+
+  scale_x_continuous(breaks=c(10,33,55,77,99), 
+                     labels=c("under 25", "25-34", "35-44", "45-54", "55+"),name="Age")+
   scale_y_continuous(name="Annual deaths per 100,000")+
-  labs(title="The opposing trajectories of drug and alcohol deaths in Scotland",
-       subtitle="Annual rates of <span style='color:tomato3;'>drug-related</span> and <span style='color:skyblue3;'>alcohol-specific</span> deaths between 2004 and 2020<br>(Alcohol-specific deaths data for 2020 will be published in mid-August)",
+  labs(title="The contrasting trajectories of drug and alcohol deaths in Scotland",
+       subtitle="Annual rates of <span style='color:tomato3;'>drug-related</span> and <span style='color:skyblue3;'>alcohol-specific</span> deaths between 2001 and 2021<br>",
        caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
 
 combfull <- ggdraw()+
   draw_plot(combplot)+
   draw_plot(ASDinset, x=0.1, y=0.58, width=0.13, height=0.15)+
   draw_plot(DRDinset, x=0.1, y=0.72, width=0.13, height=0.15)+
-  draw_label("2004", x=0.12, y=0.58, size=10)+
-  draw_label("2020", x=0.21, y=0.58, size=10)+
+  draw_label("2001", x=0.12, y=0.58, size=10)+
+  draw_label("2021", x=0.21, y=0.58, size=10)+
   draw_label("Key", x=0.15, y=0.88, size=10, fontface="bold")+
-  draw_label("Alcohol", x=0.17, y=0.625, size=10)+
+  draw_label("Alcohol", x=0.16, y=0.625, size=10)+
   draw_label("Drugs", x=0.17, y=0.77, size=10)
 
-tiff("Outputs/ASDDRDScot2021.tiff", units="in", width=9, height=6.6, res=500)
+tiff("Outputs/ASDDRDScot2022.tiff", units="in", width=9, height=6.6, res=500)
 ggdraw(combfull)
 dev.off()
 
@@ -804,293 +794,252 @@ dev.off()
 
 ####################################################################################################
 #Bivariate map
-#Read in Scottish DRD data at Council Level 2018-2020
-DRD.s <- read_excel(rawdata, sheet="C1 - summary", range="A10:L41", col_names=FALSE) %>% 
-  select(`...1`, `...10`, `...11`, `...12`) %>% 
+#Read in Scottish DRD data at Council Level 2017-2021
+DRD_LA.s <- read_excel(rawdata, sheet="C4 - age-stand death rates", range="A8:S39", col_names=FALSE) %>% 
   rename(LA=`...1`) %>% 
-  mutate(DRD=(`...10`+`...11`+`...12`)/3) %>% 
-  select(LA, DRD)
+  gather(year, DRD, c(2:ncol(.))) %>% 
+  mutate(DRD=as.numeric(DRD),
+         year=as.numeric(gsub("...", "", year))+1998,
+         year=paste0(year, "-", year+4),
+         LA=gsub("&", "and", LA))
 
-#Read in Scottish ASD data at Council Level 2017-2019
+#Read in Scottish ASD data at Council Level 2017-2021
 temp <- tempfile()
-source <- "https://www.nrscotland.gov.uk/files//statistics/alcohol-deaths/2019/alcohol-specific-deaths-19-all-tabs.xlsx"
+source <- "https://www.nrscotland.gov.uk/files//statistics/alcohol-deaths/2021/alcohol-specific-deaths-21-all-tabs.xlsx"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
-ASD.s <- as.data.frame(t(read_excel(temp, sheet="5 - Local Authority", range=c("C44:AH46"), col_names=FALSE))) %>% 
-  mutate(ASD=(V1+V2+V3)/3) %>% 
-  select(ASD)
+ASD_LA.s <- read_excel(temp, sheet="Table_4B", range="A6:C599", col_names=FALSE) %>% 
+  set_names("year", "LA", "ASD") %>% 
+  mutate(year=gsub("to", "-", year)) %>% 
+  filter(LA!="Scotland")
 
-#The columes in the ASD data match the DRD data, so don't bother faffing about with names
-DRDASD.s <- cbind(DRD.s, ASD.s)
+#Bring Scottish data together
+DRDASD_LA.s <- merge(DRD_LA.s, ASD_LA.s, all=TRUE)
+
+#Latest years only
+DRDASD_LA.s2 <- DRDASD_LA.s %>% 
+  filter(year=="2017-2021")
 
 #Read in English & Welsh data at LTLA level
-#DRDs 2018-20
+#DRDs 2019-21
 temp <- tempfile()
-source <- "https://www.ons.gov.uk/file?uri=%2fpeoplepopulationandcommunity%2fbirthsdeathsandmarriages%2fdeaths%2fdatasets%2fdrugmisusedeathsbylocalauthority%2fcurrent/2020localauthorities.xls"
+source <- "https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/datasets/drugmisusedeathsbylocalauthority/current/2021localauthorities.xlsx"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
-DRD.ew <- read_excel(temp, sheet="Table 6", range="A7:E438", col_names=FALSE) %>% 
-  mutate(LA=coalesce(`...3`, `...4`)) %>% 
-  select(`...1`, `...5`, LA) %>% 
-  rename(code=`...1`, DRD=`...5`) %>%
-  #adjust for the fact that the number of deaths is ths cumulative 3 year total
-  mutate(DRD=DRD/3) %>% 
-  #fix names that don't align with ASD data
-  mutate(LA=case_when(
-    LA=="Kingston upon Hull, City of" ~ "Kingston upon Hull",
-    LA=="Herefordshire, County of" ~ "Herefordshire",
-    LA=="Bristol, City of" ~ "Bristol",
-    TRUE ~ as.character(LA)),
-    code=if_else(LA=="Buckinghamshire", "E10000002", as.character(code)),
-    #Tidy up Welsh LA names
-    LA=if_else(substr(code, 1, 1)=="W", substr(LA, 1, regexpr("/", LA)-2), as.character(LA)))
+DRD_LA.ew <-  read_excel(temp, sheet="Table 6", range="A9:DM431", col_names=FALSE) %>% 
+  mutate(`...2`=coalesce(`...2`, `...3`, `...4`)) %>% 
+  select(`...1`, `...2`, `...6`, `...12`, `...18`, `...24`, `...30`, `...36`, `...42`, `...48`, `...54`,
+         `...60`, `...66`, `...72`, `...78`, `...84`, `...90`, `...96`, `...102`, `...108`, `...114`) %>% 
+  set_names("Area Codes", "Area Names", "2019-21", "2018-20", "2017-19", "2016-18", "2015-17", "2014-16",
+            "2013-15", "2012-14", "2011-13", "2010-12", "2009-11", "2008-10", "2007-09", "2006-08", 
+            "2005-07", "2004-06", "2003-05", "2002-04", "2001-03") %>% 
+  filter(!is.na(`Area Codes`)) %>% 
+  mutate(across(starts_with("20"), ~as.numeric(gsub(":", "", .x)))) %>% 
+  gather(year, DRD, c(3:21)) %>% 
+  mutate(`Area Names`=gsub(", City of", "", `Area Names`),
+         `Area Names`=gsub(", County of", "", `Area Names`),
+         `Area Names`=gsub(" UA", "", `Area Names`),
+         `Area Names`=gsub("&", "and", `Area Names`),
+         `Area Names`=gsub("King's", "King’s", `Area Names`),
+         `Area Names`=gsub(" /.*", "", `Area Names`))
+  
+#Download Alcohol-specific deaths by LA for England, which is bizarrely only available from OHID, not ONS
+#data up to 2017-19
+ASD_LA.e <- fingertips_data(IndicatorID=91380, AreaTypeID=401) %>% 
+  filter(Sex=="Persons") %>% 
+  select(AreaCode, AreaName, Value, Timeperiod) %>% 
+  set_names("Area Codes", "Area Names", "ASD", "year") %>% 
+  mutate(year=gsub(" ", "", year),
+         `Area Names`=gsub(" UA", "", `Area Names`))
 
-#ASDs for England 2017-19
+#Download ASD by LA for Wales, available from DHCWales
+#Massive thanks to @michaelgoodier for digging out the API query, because the website is *unhelpful*
+url <- "https://t.co/xgR0XhyQPC"
+ASD_LA.w <- fromJSON(url)[["features"]] %>% 
+  as.matrix() %>% 
+  as.data.frame() %>% 
+  set_names("Area Names", "2009-11", "2010-12", "2011-13", "2012-14", "2013-15", "2014-16", "2015-17",
+            "2016-18", "2017-19", "2018-20", "ID") %>% 
+  select(-ID) %>% 
+  gather(year, ASD2, c("2009-11":"2018-20")) %>% 
+  mutate(ASD2=as.numeric(ASD2))
+
+#Combine E&W data
+DRDASD_LA.ew <- merge(DRD_LA.ew, ASD_LA.e, all=T) %>% 
+  merge(ASD_LA.w, all=T) %>% 
+  mutate(ASD=coalesce(ASD, ASD2)) %>% 
+  select(-ASD2)
+
+#Filter latest years only
+DRDASD_LA.ew2 <- DRDASD_LA.ew %>% 
+  group_by(`Area Names`, `Area Codes`) %>% 
+  summarise(ASD=ASD[year=="2017-19"],
+            DRD=DRD[year=="2019-21"])
+
+#Download NI data
+#DRD
 temp <- tempfile()
-source <- "https://fingertipsws.phe.org.uk/api/all_data/csv/by_profile_id?parent_area_code=E92000001&parent_area_type_id=6&child_area_type_id=102&profile_id=87&category_area_code="
+source <- "https://www.nisra.gov.uk/system/files/statistics/Drug-related%20deaths%20in%20NI%2C%202010-2020%20final%20_revised%20June%202022.xlsx"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
-ASD.e <- read.csv(temp) %>% 
-  filter(Indicator.ID=="91380" & Sex=="Persons" & Area.Type=="County & UA (pre 4/19)") %>% 
-  select(Area.Code, Area.Name, Value, Time.period) %>% 
-  rename(code=Area.Code, LA=Area.Name, rate=Value)
+DRD_LA.ni <- read_excel(temp, sheet="Table 9", range="A17:F28") %>% 
+  gather(year, DRD, c(2:ncol(.))) %>% 
+  set_names("LA", "year", "DRD") %>% 
+  #scale 'drug-related' deaths down to estimate 'drug misuse' deaths for comparability to the GB data
+  mutate(DRD=DRD*0.835,
+         LA=gsub("&", "and", LA))
 
-#Bring in population (based on 2017 data to cope with Dorset)
+#ASD
 temp <- tempfile()
-source <- "https://www.ons.gov.uk/file?uri=%2fpeoplepopulationandcommunity%2fpopulationandmigration%2fpopulationestimates%2fdatasets%2fpopulationestimatesforukenglandandwalesscotlandandnorthernireland%2fmid2017/ukmidyearestimates2017finalversion.xls"
+source <- "https://www.nisra.gov.uk/system/files/statistics/Alcohol_Tables_20%20Final.xlsx"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
-LApop <- read_excel(temp, sheet="MYE2 - All", range="A6:D445", col_names=FALSE) %>% 
-  select(-`...3`) %>% 
-  rename(code=`...1`, LA=`...2`, pop=`...4`)
+ASD_LA.ni <- read_excel(temp, sheet="Table 5", range="A18:L29") %>% 
+  gather(year, ASD, c(2:ncol(.))) %>% 
+  set_names("LA", "year", "ASD") %>% 
+  mutate(LA=gsub("Armagh", "Armagh City", LA))
 
-ASD.e <- merge(ASD.e, LApop, by="code", all.x=TRUE) %>% 
-  select(-LA.y) %>% 
-  rename(LA=LA.x) %>% 
-  mutate(ASD=rate*pop/100000)
+DRDASD_LA.ni <- merge(DRD_LA.ni, ASD_LA.ni, all=T)
 
-#Faff about with Dorset & Bournemouth, which are missing from the latest data
-temp <- subset(ASD.e, code %in% c("E06000028", "E06000029", "E10000009") & 
-                 Time.period=="2015 - 17") %>% 
-  mutate(code=case_when(
-    code %in% c("E06000028", "E06000029") ~ "E06000058",
-    TRUE ~ "E06000059"), 
-    LA=case_when(
-      code=="E06000058" ~ "Bournemouth, Christchurch and Poole",
-      TRUE ~ "Dorset"))
+#Select most recent data
+DRDASD_LA.ni2 <- DRDASD_LA.ni %>% 
+  filter(year=="2020")
 
-ASD.e <- ASD.e %>% 
-  filter(Time.period=="2017 - 19") %>% 
-  bind_rows(temp) %>% 
-  select(-Time.period) %>% 
-  group_by(code, LA) %>% 
-  summarise(ASD=sum(ASD)) %>% 
-  ungroup()
+#Download Carl Baker's lovely map
+ltla <- tempfile()
+source <- ("https://github.com/houseofcommonslibrary/uk-hex-cartograms-noncontiguous/raw/main/geopackages/LocalAuthorities-lowertier.gpkg")
+ltla <- curl_download(url=source, destfile=ltla, quiet=FALSE, mode="wb")
 
-#ASDs for Wales 2015-17
-temp <- tempfile()
-source <- "https://www.healthmapswales.wales.nhs.uk/IAS/data/csv?viewId=155&geoId=108&subsetId=&viewer=CSV"
-temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
+Background <- st_read(ltla, layer="7 Background")
 
-ASD.w <- read.csv(temp)[c(1:22),c(2,161)] %>% 
-  rename(LA=Name, ASD=Numerator.27) %>% 
-  mutate(LA=if_else(LA=="The Vale of Glamorgan", "Vale of Glamorgan", as.character(LA)))
+ltlarates <- st_read(ltla, layer="6 LTLA-2021") %>% 
+  left_join(DRDASD_LA.ew2, by=c("Lacode"="Area Codes")) %>% 
+  left_join(DRDASD_LA.s2 %>% set_names("LA", "year", "DRD2", "ASD2"), by=c("Laname"="LA")) %>% 
+  mutate(ASD=coalesce(ASD, ASD2), DRD=coalesce(DRD, DRD2)) %>% 
+  select(-c(ASD2, DRD2)) %>% 
+  left_join(DRDASD_LA.ni2 %>% set_names("LA", "year", "DRD2", "ASD2"), by=c("Laname"="LA")) %>% 
+  mutate(ASD=coalesce(ASD, ASD2), DRD=coalesce(DRD, DRD2)) 
 
-DRDASD.ew <- merge(bind_rows(ASD.e, ASD.w), DRD.ew, by="LA", all.x=TRUE) %>% 
-  mutate(code=coalesce(code.x, code.y)) %>% 
-  select(-code.x, -code.y)
+Groups <- st_read(ltla, layer="2 Groups")
 
-#Read in NI DRD by LA 2017-19
-temp <- tempfile()
-source <- "https://www.ninis2.nisra.gov.uk/Download/Population/Drug%20Related%20Deaths%20and%20Deaths%20due%20to%20Drug%20Misuse%20(administrative%20geographies).ods"
-temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
+Group_labels <- st_read(ltla, layer="1 Group labels") %>% 
+  mutate(just=if_else(LabelPosit=="Left", 0, 1))
 
-DRD.ni <- read_ods(temp, sheet="LGD2014", range="A5:H15", col_names=FALSE) %>% 
-  select(-C, -E, -G) %>% 
-  mutate(DRD=(D+`F`+H)/3) %>% 
-  rename(LA=A, code=B) %>% 
-  select(LA, code, DRD)
+agg_tiff("Outputs/ASDCartogramUK.tiff", units="in", width=8, height=9, res=500)
+ggplot()+
+  geom_sf(data=Background, aes(geometry=geom), fill="White")+
+  geom_sf(data=ltlarates, aes(geometry=geom, fill=ASD), colour="Black", size=0.1)+
+  geom_sf(data=Groups, aes(geometry=geom), fill=NA, colour="Black")+
+  geom_sf_text(data=Group_labels, aes(geometry=geom, label=Group.labe, hjust=just), size=rel(2.4),
+               colour="Black")+
+  scale_fill_paletteer_c("pals::ocean.ice", direction=-1, limits=c(0,max(ltlarates$ASD)),
+                         name="Deaths per 100,000")+
+  theme_void()+
+  theme(plot.title=element_text(face="bold", size=rel(1.4)),
+        text=element_text(family="Lato"), plot.title.position="plot",
+        plot.caption.position="plot", legend.position="top")+
+  guides(fill = guide_colorbar(title.position = 'top', title.hjust = .5,
+                               barwidth = unit(20, 'lines'), barheight = unit(.5, 'lines')))+
+  labs(title="Alcohol-specific deaths in the UK",
+       subtitle="Age-standardised mortality rates for causes that are 100% attributable to alcohol.\nGrey areas have too few deaths to robustly calculate these rates.\n",
+       caption="Data from ONS, OHID, DHC Wales, NRS & NISRA, Cartogram from @carlbaker/House of Commons Library\nPlot by @VictimOfMaths")
 
-#Read in NI ASD by LA 2017-19
-temp <- tempfile()
-source <- "https://www.ninis2.nisra.gov.uk/Download/Population/Alcohol%20Specific%20Deaths%20(administrative%20geographies).ods"
-temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
+dev.off()
 
-ASD.ni <- read_ods(temp, sheet="LGD2014", range="A5:E15", col_names=FALSE) %>% 
-  mutate(ASD=(C+D+E)/3) %>% 
-  rename(LA=A, code=B) %>% 
-  select(LA, code, ASD)
+agg_tiff("Outputs/DRDCartogramUK.tiff", units="in", width=8, height=9, res=500)
+ggplot()+
+  geom_sf(data=Background, aes(geometry=geom), fill="White")+
+  geom_sf(data=ltlarates, aes(geometry=geom, fill=DRD), colour="Black", size=0.1)+
+  geom_sf(data=Groups, aes(geometry=geom), fill=NA, colour="Black")+
+  geom_sf_text(data=Group_labels, aes(geometry=geom, label=Group.labe, hjust=just), size=rel(2.4),
+               colour="Black")+
+  scale_fill_paletteer_c("pals::ocean.amp", limits=c(0,max(ltlarates$DRD)),
+                         name="Deaths per 100,000")+
+  theme_void()+
+  theme(plot.title=element_text(face="bold", size=rel(1.4)),
+        text=element_text(family="Lato"), plot.title.position="plot",
+        plot.caption.position="plot", legend.position="top")+
+  guides(fill = guide_colorbar(title.position = 'top', title.hjust = .5,
+                               barwidth = unit(20, 'lines'), barheight = unit(.5, 'lines')))+
+  labs(title="Drug-related deaths in the UK",
+       subtitle="Age-standardised mortality rates for drug misuse deaths.\nGrey areas have too few deaths to robustly calculate these rates.\n",
+       caption="Data from ONS, NRS & NISRA, Cartogram from @carlbaker/House of Commons Library\nPlot by @VictimOfMaths")
 
-DRDASD.ni <- merge(DRD.ni, ASD.ni)
+dev.off()
 
-#Bring in populations (2019)
-temp <- tempfile()
-source <- "https://www.ons.gov.uk/file?uri=%2fpeoplepopulationandcommunity%2fpopulationandmigration%2fpopulationestimates%2fdatasets%2fpopulationestimatesforukenglandandwalesscotlandandnorthernireland%2fmid2019april2020localauthoritydistrictcodes/ukmidyearestimates20192020ladcodes.xls"
-temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
+#Extract data
+DRDASD <- ltlarates %>% 
+  select(Lacode, Laname, ASD, DRD) %>% 
+  st_drop_geometry() %>% 
+  mutate(Country=case_when(
+    substr(Lacode, 1, 1)=="E" ~ "England",
+    substr(Lacode, 1, 1)=="W" ~ "Wales",
+    substr(Lacode, 1, 1)=="S" ~ "Scotland",
+    TRUE ~ "Northern Ireland"))
 
-LApop2 <- read_excel(temp, sheet="MYE2 - Persons", range="A6:D431", col_names=FALSE) %>% 
-  select(-`...3`) %>% 
-  rename(code=`...1`, LA=`...2`, pop=`...4`) %>% 
-  mutate(code=if_else(code=="E06000060", "E10000002", as.character(code)))
-
-#Scotland
-DRDASD.s <- DRDASD.s %>% 
-  mutate(LA=str_replace(LA, "&", "and")) %>% 
-  merge(LApop2, by="LA", all.x=TRUE)
-
-#NI
-DRDASD.ni <- merge(DRDASD.ni, LApop2, all.x=TRUE)
-
-#England
-DRDASD.ew <- merge(DRDASD.ew, LApop2, all.x=TRUE, by="code") %>% 
-  select(-LA.y) %>% 
-  rename(LA=LA.x)
-
-#Merge
-DRDASD <- bind_rows(DRDASD.s, DRDASD.ew, DRDASD.ni) %>% 
-  gather(cause, deaths, c("DRD", "ASD")) %>% 
-  mutate(mortrate=deaths*100000/pop) %>% 
-  mutate(country=case_when(
-    substr(code, 1, 1)=="E" ~ "England",
-    substr(code, 1, 1)=="W" ~ "Wales",
-    substr(code, 1, 1)=="S" ~ "Scotland",
-    substr(code, 1, 1)=="N" ~ "Northern Ireland"))
-
-#Save
-write.csv(DRDASD, "Data/DRDASD.csv")
-
-#Download shapefile
+#Download shapefile for GB
 temp <- tempfile()
 temp2 <- tempfile()
-source <- "https://opendata.arcgis.com/datasets/43b324dc1da74f418261378a9a73227f_0.zip?outSR=%7B%22latestWkid%22%3A27700%2C%22wkid%22%3A27700%7D"
+source <- "https://opendata.arcgis.com/api/v3/datasets/912de82a62a048918e59d400f3a15e3a_0/downloads/data?format=shp&spatialRefId=27700&where=1%3D1"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=temp2)
 
 #The actual shapefile has a different name each time you download it, so need to fish the name out of the unzipped file
 name <- list.files(temp2, pattern=".shp")
 shapefile <- st_read(file.path(temp2, name))
-names(shapefile)[names(shapefile) == "ctyua19cd"] <- "code"
+names(shapefile)[names(shapefile) == "LAD21CD"] <- "Lacode"
 
-map.data <- full_join(shapefile, DRDASD, by="code")
+map.data <- full_join(shapefile, DRDASD, by="Lacode")
 
-#Download Carl Baker's lovely cartogram
-utla <- tempfile()
-source <- ("https://github.com/houseofcommonslibrary/uk-hex-cartograms-noncontiguous/raw/main/geopackages/LocalAuthorities-uppertier.gpkg")
-utla <- curl_download(url=source, destfile=utla, quiet=FALSE, mode="wb")
+#Download shapefile for NI
+temp <- tempfile()
+temp2 <- tempfile()
+source <- "https://opendata.arcgis.com/api/v3/datasets/70a46bf8c2834073b33c9e4cb8a0b6ba_0/downloads/data?format=shp&spatialRefId=27700&where=1%3D1"
+temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
+unzip(zipfile=temp, exdir=temp2)
 
-Background <- st_read(utla, layer="7 Background")
+#The actual shapefile has a different name each time you download it, so need to fish the name out of the unzipped file
+name <- list.files(temp2, pattern=".shp")
+shapefile.ni <- st_read(file.path(temp2, name))
+names(shapefile.ni)[names(shapefile.ni) == "CTYUA21CD"] <- "Lacode"
 
-utlacases <- st_read(utla, layer="4 UTLA-2019") %>% 
-  mutate(cua.code=case_when(
-    cua.code=="S12000015" ~ "S12000047",
-    cua.code=="S12000046" ~ "S12000049",
-    cua.code=="S12000044" ~ "S12000050",
-    cua.code=="S12000024" ~ "S12000048",
-    TRUE ~ cua.code)) %>% 
-  left_join(DRDASD, by=c("cua.code"="code"))
+map.data.ni <- full_join(shapefile.ni %>% filter(substr(Lacode, 1, 1)=="N"), DRDASD, by="Lacode")
 
-Groups <- st_read(utla, layer="2 Group")
+map.data <- bind_rows(map.data, map.data.ni)
 
-Group_labels <- st_read(utla, layer="1 Group labels") %>% 
-  mutate(just=if_else(LabelPosit=="Left", 0, 1))
-
-#ASD map only
-ASDUK <- ggplot()+
-  geom_sf(data=subset(map.data, cause=="ASD"), aes(geometry=geometry, fill=mortrate), 
-          colour=NA)+
-  scale_fill_paletteer_c("pals::ocean.ice", direction=-1, name="Deaths\nper 100,000",
-                         na.value="White")+
-  theme_classic()+
-  theme(axis.line=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(),
-        axis.title=element_blank(), text=element_text(family="Roboto"))
-
-tiff("Outputs/ASD2021UK.tiff", units="in", width=8.5, height=14, res=500)
-ASDUK+labs(title="In spite of recent progress, alcohol-specific deaths remain highest in Scotland",
-           subtitle="Rates of mortality from alcohol-specific causes in UK Local Authorities",
-           caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects the most recently-available figures for each jurisdiction")+
-  theme(plot.title=element_text(face="bold", size=rel(1.4)),
-        plot.subtitle=element_text(size=rel(1.2)))
-
-dev.off()
-
-plot1 <- ggplot()+
-  geom_sf(data=Background, aes(geometry=geom))+
-  geom_sf(data=utlacases %>% filter(cause=="ASD"), 
-          aes(geometry=geom, fill=mortrate), colour="Black", size=0.1)+
-  geom_sf(data=Groups, aes(geometry=geom), fill=NA, colour="Black")+
-  geom_sf_text(data=Group_labels, aes(geometry=geom, label=Group.labe, hjust=just), 
-               size=rel(2.4), colour="Black")+
-  scale_fill_paletteer_c("pals::ocean.ice", direction=-1, name="Deaths\nper 100,000",
-                         na.value="White")+
+#Actual maps
+agg_tiff("Outputs/ASDmapUK.tiff", units="in", width=7, height=9, res=500)
+ggplot(map.data, aes(geometry=geometry, fill=ASD))+
+  geom_sf(colour=NA)+
+  scale_fill_paletteer_c("pals::ocean.ice", direction=-1, limits=c(0,max(map.data$ASD)),
+                         name="Deaths per 100,000")+
   theme_void()+
-  theme(plot.title=element_text(face="bold", size=rel(1.2)),
-        text=element_text(family="Lato"))
-
-agg_tiff("Outputs/ASD2021UKCartogram.tiff", units="in", width=9, height=10, res=800)
-plot1+
-  labs(title="In spite of recent progress, alcohol-specific deaths remain highest in Scotland",
-       subtitle="Rates of mortality from alcohol-specific causes in UK Local Authorities",
-       caption="Data from ONS, NRS, NISRA & PHE | Cartogram from @carlbaker/House of Commons Library\nPlot by @VictimOfMaths\nData reflects the most recently-available figures for each jurisdiction")
-dev.off()
-
-#DRD map only
-DRDUK <- ggplot()+
-  geom_sf(data=subset(map.data, cause=="DRD"), aes(geometry=geometry, fill=mortrate), 
-          colour=NA)+
-  scale_fill_paletteer_c("pals::ocean.amp", name="Deaths\nper 100,000",
-                         na.value="White")+
-  theme_classic()+
-  theme(axis.line=element_blank(), axis.ticks=element_blank(), axis.text=element_blank(),
-        axis.title=element_blank(), text=element_text(family="Lato"))
-
-
-tiff("Outputs/DRD2021UK.tiff", units="in", width=8.5, height=14, res=500)
-DRDUK+labs(title="There is huge variation in drug deaths across the country",
-           subtitle="Rates of deaths from drug misuse in UK Local Authorities",
-           caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
   theme(plot.title=element_text(face="bold", size=rel(1.4)),
-        plot.subtitle=element_text(size=rel(1.2)))
+        text=element_text(family="Lato"), plot.title.position="plot",
+        plot.caption.position="plot", legend.position="top")+
+  guides(fill = guide_colorbar(title.position = 'top', title.hjust = .5,
+                               barwidth = unit(20, 'lines'), barheight = unit(.5, 'lines')))+
+  labs(title="Alcohol-specific deaths in the UK",
+       subtitle="Age-standardised mortality rates for causes that are 100% attributable to alcohol.\nGrey areas have too few deaths to robustly calculate these rates.\n",
+       caption="Data from ONS, OHID, DHC Wales, NRS & NISRA\nPlot by @VictimOfMaths")
 
 dev.off()
 
-plot2 <- ggplot()+
-  geom_sf(data=Background, aes(geometry=geom))+
-  geom_sf(data=utlacases %>% filter(cause=="DRD"), 
-          aes(geometry=geom, fill=mortrate), colour="Black", size=0.1)+
-  geom_sf(data=Groups, aes(geometry=geom), fill=NA, colour="Black")+
-  geom_sf_text(data=Group_labels, aes(geometry=geom, label=Group.labe, hjust=just), 
-               size=rel(2.4), colour="Black")+
-  scale_fill_paletteer_c("pals::ocean.amp", name="Deaths\nper 100,000",
-                         na.value="White")+
+agg_tiff("Outputs/DRDmapUK.tiff", units="in", width=7, height=9, res=500)
+ggplot(map.data, aes(geometry=geometry, fill=DRD))+
+  geom_sf(colour=NA)+
+  scale_fill_paletteer_c("pals::ocean.amp", limits=c(0,max(map.data$ASD)),
+                         name="Deaths per 100,000")+
   theme_void()+
-  theme(plot.title=element_text(face="bold", size=rel(1.2)),
-        text=element_text(family="Lato"))
+  theme(plot.title=element_text(face="bold", size=rel(1.4)),
+        text=element_text(family="Lato"), plot.title.position="plot",
+        plot.caption.position="plot", legend.position="top")+
+  guides(fill = guide_colorbar(title.position = 'top', title.hjust = .5,
+                               barwidth = unit(20, 'lines'), barheight = unit(.5, 'lines')))+
+  labs(title="Drug-related deaths in the UK",
+       subtitle="Age-standardised mortality rates for drug misuse deaths.\nGrey areas have too few deaths to robustly calculate these rates.\n",
+       caption="Data from ONS, NRS & NISRA\nPlot by @VictimOfMaths")
 
-agg_tiff("Outputs/DRDD2021UKCartogram.tiff", units="in", width=9, height=10, res=800)
-plot2+
-  labs(title="There is huge variation in drug deaths across the country",
-       subtitle="Rates of deaths from drug misuse in UK Local Authorities",
-       caption="Data from ONS, NRS, NISRA & PHE | Cartogram from @carlbaker/House of Commons Library\nPlot by @VictimOfMaths\nData reflects the most recently-available figures for each jurisdiction")
-
-dev.off()
-
-#Both on the same plot
-tiff("Outputs/ASDDRD2020UK.tiff", units="in", width=10, height=8, res=500)
-plot_grid(ASDUK+labs(title="Patterns in alcohol and drug deaths across the UK",
-                     subtitle="Mortality rates from <span style='color:skyblue4;'>alcohol-specific causes</span> and <span style='color:tomato4;'>drug misuse")+
-            theme(plot.title=element_text(face="bold", size=rel(1.2)),
-                  plot.subtitle=element_markdown()), 
-          DRDUK+labs(caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction"),
-          align="h")
-dev.off()
-
-tiff("Outputs/ASDDRDCartogram2020UK.tiff", units="in", width=14, height=8, res=500)
-plot_grid(plot1+labs(title="Patterns in alcohol and drug deaths across the UK",
-                     subtitle="Mortality rates from <span style='color:skyblue4;'>alcohol-specific causes</span> and <span style='color:tomato4;'>drug misuse")+
-            theme(plot.title=element_text(face="bold", size=rel(1.2)),
-                  plot.subtitle=element_markdown()), 
-          plot2+labs(caption="Data from ONS, NRS, NISRA & PHE | Cartogram from @carlbaker/House of Commons Library\nPlot by @VictimOfMaths\nData reflects the most recently-available figures for each jurisdiction"),
-          align="h")
 dev.off()
 
 #BIVARIATE MAP
@@ -1236,7 +1185,7 @@ dev.off()
 #Further explorations of the data
 #scatter coloured by country
 tiff("Outputs/EngScotLAALcDrg.tiff", units="in", width=7, height=6, res=500)
-ggplot(bidata, aes(x=ASD, y=DRD, colour=country))+
+ggplot(DRDASD, aes(x=ASD, y=DRD, colour=Country))+
   geom_point()+
   geom_segment(x=-10, xend=45, y=-10, yend=45, colour="Black")+
   theme_classic()+
@@ -1279,8 +1228,8 @@ ggplot(bidata, aes(x=ASD, y=DRD, colour=country))+
 dev.off()
 
 #ordered point charts
-tiff("Outputs/EngScotLAALcCIs.tiff", units="in", width=8, height=6, res=500)
-ggplot(bidata, aes(x=fct_reorder(as.factor(LA), ASD), y=ASD, colour=country))+
+tiff("Outputs/ASDOrderedPoints.tiff", units="in", width=8, height=6, res=500)
+ggplot(DRDASD %>% filter(!is.na(ASD)), aes(x=fct_reorder(as.factor(Laname), ASD), y=ASD, colour=Country))+
   geom_point()+
   theme_classic()+
   scale_colour_paletteer_d("fishualize::Scarus_quoyi", name="")+
@@ -1288,13 +1237,13 @@ ggplot(bidata, aes(x=fct_reorder(as.factor(LA), ASD), y=ASD, colour=country))+
   scale_y_continuous(name="Alcohol-specific deaths per 100,000")+
   labs(title="One of these countries is not like the others", 
        subtitle="Annual deaths from alcohol-specific causes per 100,000 population across UK Local Authorities",
-       caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
-  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(),
-        plot.title=element_text(face="bold", size=rel(1.2)))
+       caption="Data from ONS, OHID, DHC Wales, NRS & NISRA | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
+  theme_custom()+
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank())
 dev.off()
 
-tiff("Outputs/EngScotLADrgCIs.tiff", units="in", width=8, height=6, res=500)
-ggplot(bidata, aes(x=fct_reorder(as.factor(LA), DRD), y=DRD, colour=country))+
+tiff("Outputs/DRDOrderedPoints.tiff", units="in", width=8, height=6, res=500)
+ggplot(DRDASD %>% filter(!is.na(DRD)), aes(x=fct_reorder(as.factor(Laname), DRD), y=DRD, colour=Country))+
   geom_point()+
   theme_classic()+
   scale_colour_paletteer_d("fishualize::Scarus_quoyi", name="")+
@@ -1302,7 +1251,7 @@ ggplot(bidata, aes(x=fct_reorder(as.factor(LA), DRD), y=DRD, colour=country))+
   scale_y_continuous(name="Drug misuse deaths per 100,000")+
   labs(title="One of these countries is not like the others", 
        subtitle="Annual deaths from drug misuse per 100,000 population across UK Local Authorities",
-       caption="Data from ONS, NRS, NISRA & PHE | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
-  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(),
-        plot.title=element_text(face="bold", size=rel(1.2)))
+       caption="Data from ONS, NRS & NISRA | Plot by @VictimOfMaths\nData reflects a 3-year average of the most recently-available figures for each jurisdiction")+
+  theme_custom()+
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank())
 dev.off()
