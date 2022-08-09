@@ -1226,8 +1226,8 @@ tabledata_m <- Combined_short %>%
   group_by(Cause)
 
 table_f <- gt(tabledata_f, rowname_col = "ageband") %>% 
-  tab_header(title=md("**Female mortality rates for 'Deaths of Despair'**"),
-             subtitle="Age-standardised death rates among women by year, country, cause and age group") %>% 
+  #tab_header(title=md("**Female mortality rates for 'Deaths of Despair'**"),
+  #           subtitle="Age-standardised death rates among women by year, country, cause and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   tab_spanner(label="Canada", columns=c(Canada_2001, Canada_2010,
                                         Canada_2019)) %>% 
@@ -1278,8 +1278,8 @@ table_f <- gt(tabledata_f, rowname_col = "ageband") %>%
              apply_to=c("text"))
 
 table_m <- gt(tabledata_m, rowname_col = "ageband") %>% 
-  tab_header(title=md("**Male mortality rates for 'Deaths of Despair'**"),
-             subtitle="Age-standardised death rates among men by year, country, cause, and age group") %>% 
+  #tab_header(title=md("**Male mortality rates for 'Deaths of Despair'**"),
+  #           subtitle="Age-standardised death rates among men by year, country, cause, and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   tab_spanner(label="Canada", columns=c(Canada_2001, Canada_2010,
                                         Canada_2019)) %>% 
@@ -1475,6 +1475,7 @@ dev.off()
 
 #######################
 #Appendix figures
+
 #Lexis surfaces
 agg_png("Outputs/DoDAppendix1a_Male.png", units="in", width=8, height=13, res=500)
 Combined %>% 
@@ -1483,7 +1484,7 @@ Combined %>%
   geom_raster(aes(x=Year, y=Age, fill=mx_smt1D*100000))+
   scale_x_continuous(breaks=c(2000,2010,2020))+
   scale_y_continuous(name="Age", breaks=c(10, 20, 30, 40, 50, 60, 70, 80))+
-  scale_fill_paletteer_c("viridis::magma", name="Deaths\nper 100,000", limits=c(0,120))+
+  scale_fill_paletteer_c("viridis::turbo", name="Deaths\nper 100,000")+
   facet_grid(Cause~Country)+
   theme_custom()+
   theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
@@ -1497,11 +1498,65 @@ Combined %>%
   geom_raster(aes(x=Year, y=Age, fill=mx_smt1D*100000))+
   scale_x_continuous(breaks=c(2000,2010,2020))+
   scale_y_continuous(name="Age", breaks=c(10, 20, 30, 40, 50, 60, 70, 80))+
-  scale_fill_paletteer_c("viridis::magma", name="Deaths\nper 100,000", limits=c(0,120))+
+  scale_fill_paletteer_c("viridis::turbo", name="Deaths\nper 100,000")+
   facet_grid(Cause~Country)+
   theme_custom()+
   theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
   coord_equal()
+dev.off()
+
+#Alternative versions of Figure 2 a-c with country and ageband swapped over
+#test
+agg_png("Outputs/DoDAppendixFig2.png", units="in", width=10, height=6, res=500)
+Combined_short %>% 
+  filter(Cause=="DoD" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
+  ggplot()+ 
+  geom_line(aes(x=Year, y=mx_std_roll, colour=ageband))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("wesanderson::Darjeeling1", name="Age")+
+  facet_grid(Sex~Country)+
+  theme_custom()+
+  theme(panel.background=element_rect(fill="Grey95"),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+dev.off()
+
+agg_png("Outputs/DoDAppendixFig2a.png", units="in", width=10, height=6, res=500)
+Combined_short %>% 
+  filter(Cause=="Drugs" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
+  ggplot()+ 
+  geom_line(aes(x=Year, y=mx_std_roll, colour=ageband))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("wesanderson::Darjeeling1", name="Age")+
+  facet_grid(Sex~Country)+
+  theme_custom()+
+  theme(panel.background=element_rect(fill="Grey95"),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+dev.off()
+
+agg_png("Outputs/DoDAppendixFig2b.png", units="in", width=10, height=6, res=500)
+Combined_short %>% 
+  filter(Cause=="Suicide" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
+  ggplot()+ 
+  geom_line(aes(x=Year, y=mx_std_roll, colour=ageband))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("wesanderson::Darjeeling1", name="Age")+
+  facet_grid(Sex~Country)+
+  theme_custom()+
+  theme(panel.background=element_rect(fill="Grey95"),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+dev.off()
+
+agg_png("Outputs/DoDAppendixFig2c.png", units="in", width=10, height=6, res=500)
+Combined_short %>% 
+  filter(Cause=="Alcohol" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
+  ggplot()+ 
+  geom_line(aes(x=Year, y=mx_std_roll, colour=ageband))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("wesanderson::Darjeeling1", name="Age")+
+  facet_grid(Sex~Country)+
+  theme_custom()+
+  theme(panel.background=element_rect(fill="Grey95"),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1))
 dev.off()
 
 #APC curvature plot
@@ -1520,7 +1575,7 @@ APCcurve <- Combined %>%
 ann_text <- data.frame(mode_mx=seq(29, 64, by=5), Year=rep(2022.5, times=8), 
                        label=as.character(seq(1995, 1960, by=-5)))
 
-agg_png("Outputs/DoDAppendixFig2.png", units="in", width=12, height=7, res=800)
+agg_png("Outputs/DoDAppendixFig3.png", units="in", width=12, height=7, res=800)
 APCcurve %>% 
   filter(!Cause %in% c("Total", "DoD")) %>% 
   ggplot(aes(x=Year, y=mode_mx))+
@@ -1592,8 +1647,8 @@ tabledata_m_supp <- Combined_short %>%
 #Canada
 table_f_supp_can <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("Canada")), 
                        rowname_col = "ageband") %>% 
-  tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in Canada**"),
-             subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
+  #tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in Canada**"),
+  #           subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   cols_label(Canada_2001="2001", Canada_2002="2002", Canada_2003="2003", Canada_2004="2004",
              Canada_2005="2005", Canada_2006="2006", Canada_2007="2007", Canada_2008="2008",
@@ -1618,8 +1673,8 @@ table_f_supp_can <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("
 
 table_m_supp_can <- gt(tabledata_m_supp %>% select(ageband, Cause, starts_with("Canada")), 
                        rowname_col = "ageband") %>% 
-  tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in Canada**"),
-             subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
+  #tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in Canada**"),
+  #           subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   cols_label(Canada_2001="2001", Canada_2002="2002", Canada_2003="2003", Canada_2004="2004",
              Canada_2005="2005", Canada_2006="2006", Canada_2007="2007", Canada_2008="2008",
@@ -1648,8 +1703,8 @@ gtsave(table_m_supp_can, "Outputs/DoDTableMale_supp_can.png")
 #England & Wales
 table_f_supp_ew <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("England")), 
                       rowname_col = "ageband") %>% 
-  tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in England & Wales**"),
-             subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
+  #tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in England & Wales**"),
+  #           subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   cols_label(`England & Wales_2001`="2001", `England & Wales_2002`="2002", `England & Wales_2003`="2003", `England & Wales_2004`="2004",
              `England & Wales_2005`="2005", `England & Wales_2006`="2006", `England & Wales_2007`="2007", `England & Wales_2008`="2008",
@@ -1674,8 +1729,8 @@ table_f_supp_ew <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("E
 
 table_m_supp_ew <- gt(tabledata_m_supp %>% select(ageband, Cause, starts_with("England")), 
                       rowname_col = "ageband") %>% 
-  tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in England & Wales**"),
-             subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
+  #tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in England & Wales**"),
+  #           subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   cols_label(`England & Wales_2001`="2001", `England & Wales_2002`="2002", `England & Wales_2003`="2003", `England & Wales_2004`="2004",
              `England & Wales_2005`="2005", `England & Wales_2006`="2006", `England & Wales_2007`="2007", `England & Wales_2008`="2008",
@@ -1704,8 +1759,8 @@ gtsave(table_m_supp_ew, "Outputs/DoDTableMale_supp_ew.png")
 #Northern Ireland
 table_f_supp_ni <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("Northern")), 
                       rowname_col = "ageband") %>% 
-  tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in Northern Ireland**"),
-             subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
+  #tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in Northern Ireland**"),
+  #           subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   cols_label(`Northern Ireland_2001`="2001", `Northern Ireland_2002`="2002", `Northern Ireland_2003`="2003", `Northern Ireland_2004`="2004",
              `Northern Ireland_2005`="2005", `Northern Ireland_2006`="2006", `Northern Ireland_2007`="2007", `Northern Ireland_2008`="2008",
@@ -1730,8 +1785,8 @@ table_f_supp_ni <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("N
 
 table_m_supp_ni <- gt(tabledata_m_supp %>% select(ageband, Cause, starts_with("Northern")), 
                       rowname_col = "ageband") %>% 
-  tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in Northern Ireland**"),
-             subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
+  #tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in Northern Ireland**"),
+  #           subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   cols_label(`Northern Ireland_2001`="2001", `Northern Ireland_2002`="2002", `Northern Ireland_2003`="2003", `Northern Ireland_2004`="2004",
              `Northern Ireland_2005`="2005", `Northern Ireland_2006`="2006", `Northern Ireland_2007`="2007", `Northern Ireland_2008`="2008",
@@ -1760,8 +1815,8 @@ gtsave(table_m_supp_ni, "Outputs/DoDTableMale_supp_ni.png")
 #Scotland
 table_f_supp_sco <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("Scotland")), 
                        rowname_col = "ageband") %>% 
-  tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in Scotland**"),
-             subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
+  #tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in Scotland**"),
+  #           subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   cols_label(Scotland_2001="2001", Scotland_2002="2002", Scotland_2003="2003", Scotland_2004="2004",
              Scotland_2005="2005", Scotland_2006="2006", Scotland_2007="2007", Scotland_2008="2008",
@@ -1786,8 +1841,8 @@ table_f_supp_sco <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("
 
 table_m_supp_sco <- gt(tabledata_m_supp %>% select(ageband, Cause, starts_with("Scotland")), 
                        rowname_col = "ageband") %>% 
-  tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in Scotland**"),
-             subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
+  #tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in Scotland**"),
+  #           subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   cols_label(Scotland_2001="2001", Scotland_2002="2002", Scotland_2003="2003", Scotland_2004="2004",
              Scotland_2005="2005", Scotland_2006="2006", Scotland_2007="2007", Scotland_2008="2008",
@@ -1816,8 +1871,8 @@ gtsave(table_m_supp_sco, "Outputs/DoDTableMale_supp_sco.png", vwidth=1200)
 #USA
 table_f_supp_us <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("USA")), 
                       rowname_col = "ageband") %>% 
-  tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in USA**"),
-             subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
+  #tab_header(title=md("**Female mortality rates for 'Deaths of Despair' in USA**"),
+  #           subtitle="Age-standardised death rates among women by year, cause, and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   cols_label(USA_2001="2001", USA_2002="2002", USA_2003="2003", USA_2004="2004",
              USA_2005="2005", USA_2006="2006", USA_2007="2007", USA_2008="2008",
@@ -1842,8 +1897,8 @@ table_f_supp_us <- gt(tabledata_f_supp %>% select(ageband, Cause, starts_with("U
 
 table_m_supp_us <- gt(tabledata_m_supp %>% select(ageband, Cause, starts_with("USA")), 
                       rowname_col = "ageband") %>% 
-  tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in USA**"),
-             subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
+  #tab_header(title=md("**Male mortality rates for 'Deaths of Despair' in USA**"),
+  #           subtitle="Age-standardised death rates among men by year, cause, and age group") %>% 
   tab_stubhead(label="Age group") %>% 
   cols_label(USA_2001="2001", USA_2002="2002", USA_2003="2003", USA_2004="2004",
              USA_2005="2005", USA_2006="2006", USA_2007="2007", USA_2008="2008",
