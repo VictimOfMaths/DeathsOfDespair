@@ -42,7 +42,7 @@ rawdata <- read_excel(temp, sheet="Table_2A", range="A5:W134") %>%
 url <- "https://www.nrscotland.gov.uk/files//statistics/population-estimates/mid-21/mid-year-pop-est-21-time-series-data.xlsx"
 temp <- curl_download(url=url, destfile=temp, quiet=FALSE, mode="wb")
 
-popdata <- read_excel(temp, sheet="Table_5", range="A5:W338") %>% 
+popdata_grp <- read_excel(temp, sheet="Table_5", range="A5:W338") %>% 
   filter(Year %in% c(1979:2021)) %>% 
   select(-`All Ages`) %>% 
   gather(Age, pop, c(3:22)) %>% 
@@ -54,9 +54,13 @@ popdata <- read_excel(temp, sheet="Table_5", range="A5:W338") %>%
            TRUE ~ Age)) %>% 
   filter(Age!="85 and over")
 
+popdata_sgl <- read_excel(temp, sheet="Table_6", range="A6:CP129") %>% 
+  select(-`All Ages`) %>% 
+  gather(Age, pop, c(3:93))
+
 #Bring togather
 data <- rawdata %>% 
-  merge(popdata, all.x=T) %>% 
+  merge(popdata_grp, all.x=T) %>% 
   mutate(agestart=case_when(
     Age=="90 or more" ~ 90,
     TRUE ~ as.numeric(gsub("\\-.*", "", Age))))
@@ -74,6 +78,8 @@ offset <- smoothdata %>% select(c(Sex, Year, agestart, pop)) %>%
   arrange(Sex, agestart)
 
 #Fit smoothing models within years only
+#Credit to Tim Riffe for help with this approach
+
 mx_smoothed1D <- data.frame(Sex=character(), Age=integer(), Year=integer(), mx_smt1D=double())
 
 for(i in c("Males", "Females", "Persons")){
@@ -102,6 +108,47 @@ for(i in c("Males", "Females", "Persons")){
   }
 }
 
+ASD_smoothed <- mx_smoothed1D %>% 
+  merge(popdata_sgl) %>% 
+  mutate(Dx_smt=mx_smt1D*pop)
+
+#Validate against actual deaths
+validate_age <- ASD_smoothed %>% 
+  mutate(Age=case_when(
+    Age<15 ~ "10-14", Age<20 ~ "15-19", Age<25 ~ "20-24", Age<30 ~ "25-29", Age<35 ~ "30-34",
+    Age<40 ~ "35-39", Age<45 ~ "40-44", Age<50 ~ "45-49", Age<55 ~ "50-54", Age<60 ~ "55-59",
+    Age<65 ~ "60-64", Age<70 ~ "65-69", Age<75 ~ "70-74", Age<80 ~ "75-79", Age<85 ~ "80-84")) %>% 
+  group_by(Age, Sex, Year) %>% 
+  summarise(Dx_smt=sum(Dx_smt)) %>% 
+  ungroup() %>% 
+  merge(smoothdata)
+
+#diagnostic plot
+ggplot(validate_age, aes(x=Dx, y=Dx_smt))+
+  geom_point()+
+  geom_abline()+
+  theme_custom()
+
+#Repeat using annual figures
+validate_yr <- ASD_smoothed %>% 
+  mutate(Age=case_when(
+    Age<15 ~ "10-14", Age<20 ~ "15-19", Age<25 ~ "20-24", Age<30 ~ "25-29", Age<35 ~ "30-34",
+    Age<40 ~ "35-39", Age<45 ~ "40-44", Age<50 ~ "45-49", Age<55 ~ "50-54", Age<60 ~ "55-59",
+    Age<65 ~ "60-64", Age<70 ~ "65-69", Age<75 ~ "70-74", Age<80 ~ "75-79", Age<85 ~ "80-84")) %>% 
+  group_by(Sex, Year) %>% 
+  summarise(Dx_smt=sum(Dx_smt)) %>% 
+  ungroup() %>% 
+  merge(smoothdata %>% group_by(Sex, Year) %>% 
+          summarise(Dx=sum(Dx)) %>% 
+          ungroup())
+
+#diagnostic plot
+ggplot(validate_yr, aes(x=Dx, y=Dx_smt))+
+  geom_point()+
+  geom_abline()+
+  theme_custom()
+
+#Final Lexis Surface
 agg_tiff("Outputs/ASDScotlandLexis.tiff", units="in", width=9, height=7, res=500)
 ggplot(mx_smoothed1D %>% filter(Sex!="Persons"), aes(x=Year, y=Age, fill=mx_smt1D*100000))+
   geom_tile()+
