@@ -892,7 +892,7 @@ DRD_LA.ni <- read_excel(temp, sheet="Table 9", range="A17:F28") %>%
 
 #ASD
 temp <- tempfile()
-source <- "https://www.nisra.gov.uk/system/files/statistics/Alcohol_Tables_20%20Final.xlsx"
+source <- "https://www.nisra.gov.uk/system/files/statistics/Alcohol_Tables_2021%20Final.xlsx"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 
 ASD_LA.ni <- read_excel(temp, sheet="Table 5", range="A18:L29") %>% 
@@ -902,9 +902,13 @@ ASD_LA.ni <- read_excel(temp, sheet="Table 5", range="A18:L29") %>%
 
 DRDASD_LA.ni <- merge(DRD_LA.ni, ASD_LA.ni, all=T)
 
-#Select most recent data
 DRDASD_LA.ni2 <- DRDASD_LA.ni %>% 
-  filter(year=="2020")
+  gather(Metric, Value, c("ASD", "DRD")) %>% 
+  na.omit() %>% 
+  group_by(LA, Metric) %>% 
+  filter(year==max(year)) %>% 
+  select(-year) %>% 
+  spread(Metric, Value)
 
 #Download Carl Baker's lovely map
 ltla <- tempfile()
@@ -918,7 +922,7 @@ ltlarates <- st_read(ltla, layer="6 LTLA-2021") %>%
   left_join(DRDASD_LA.s2 %>% set_names("LA", "year", "DRD2", "ASD2"), by=c("Laname"="LA")) %>% 
   mutate(ASD=coalesce(ASD, ASD2), DRD=coalesce(DRD, DRD2)) %>% 
   select(-c(ASD2, DRD2)) %>% 
-  left_join(DRDASD_LA.ni2 %>% set_names("LA", "year", "DRD2", "ASD2"), by=c("Laname"="LA")) %>% 
+  left_join(DRDASD_LA.ni2 %>% set_names("LA", "DRD2", "ASD2"), by=c("Laname"="LA")) %>% 
   mutate(ASD=coalesce(ASD, ASD2), DRD=coalesce(DRD, DRD2)) 
 
 Groups <- st_read(ltla, layer="2 Groups")
@@ -1202,8 +1206,8 @@ ggplot(DRDASD, aes(x=ASD, y=DRD, colour=Country))+
   geom_segment(x=-10, xend=45, y=-10, yend=45, colour="Black")+
   theme_custom()+
   theme(plot.title=element_text(face="bold", size=rel(1.2)))+
-  scale_x_continuous(name="Alcohol-specific deaths per 100,000 population\n(age-standardised)", limits=c(0,42))+
-  scale_y_continuous(name="Drug misuse deaths per 100,000 population\n(age-standardised)", limits=c(0,42))+
+  scale_x_continuous(name="Alcohol-specific deaths per 100,000 population\n(age-standardised)", limits=c(0,46))+
+  scale_y_continuous(name="Drug misuse deaths per 100,000 population\n(age-standardised)", limits=c(0,46))+
   scale_colour_paletteer_d("fishualize::Scarus_quoyi", name="")+
   annotate("text", x=32, y=6, label="More alcohol-specific deaths", colour="DarkGrey")+
   annotate("text", x=10, y=32, label="More drug misuse deaths", colour="DarkGrey")+
