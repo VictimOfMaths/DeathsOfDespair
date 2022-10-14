@@ -922,7 +922,7 @@ ltlarates <- st_read(ltla, layer="6 LTLA-2021") %>%
   left_join(DRDASD_LA.s2 %>% set_names("LA", "year", "DRD2", "ASD2"), by=c("Laname"="LA")) %>% 
   mutate(ASD=coalesce(ASD, ASD2), DRD=coalesce(DRD, DRD2)) %>% 
   select(-c(ASD2, DRD2)) %>% 
-  left_join(DRDASD_LA.ni2 %>% set_names("LA", "DRD2", "ASD2"), by=c("Laname"="LA")) %>% 
+  left_join(DRDASD_LA.ni2 %>% set_names("LA", "ASD2", "DRD2"), by=c("Laname"="LA")) %>% 
   mutate(ASD=coalesce(ASD, ASD2), DRD=coalesce(DRD, DRD2)) 
 
 Groups <- st_read(ltla, layer="2 Groups")
@@ -1219,7 +1219,7 @@ dev.off()
 
 #repeat with bivariate key overlaid
 tiff("Outputs/EngScotLAALcDrgTert.tiff", units="in", width=7, height=6, res=500)
-ggplot(bidata, aes(x=ASD, y=DRD, colour=country))+
+ggplot(bidata, aes(x=ASD, y=DRD, colour=Country))+
   geom_rect(aes(xmin=0,xmax=alccut1, ymin=0, ymax=drgcut1), fill="#CABED0", colour=NA)+
   geom_rect(aes(xmin=0,xmax=alccut1, ymin=drgcut1, ymax=drgcut2), fill="#BC7C5F", colour=NA)+
   geom_rect(aes(xmin=0,xmax=alccut1, ymin=drgcut2, ymax=42), fill="#AE3A4E", colour=NA)+
