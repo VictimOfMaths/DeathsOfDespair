@@ -75,9 +75,14 @@ ewdata <- bind_rows(data.01, data.02, data.03, data.04, data.05, data.06, data.0
   set_names("ICD10", "Year", "Sex", "Age", "Deaths") %>% 
   #Allocate causes to code groups
   #ASD definition taken from https://www.ons.gov.uk/peoplepopulationandcommunity/healthandsocialcare/causesofdeath/methodologies/alcoholrelateddeathsintheukqmi#concepts-and-definitions
-  mutate(ASD=if_else(ICD10 %in% c("E244", "G312", "G621", "G721", "I426", "K292", "K852", "K860",
-                                  "Q860", "R780") | 
-                       substr(ICD10,1,3) %in% c("F10", "K70", "X45", "X65", "Y15"), TRUE, FALSE),
+  mutate(Cause=case_when(
+    ICD10 %in% c("E244", "G312", "G621", "G721", "I426", "K292", "K852", "K860", "Q860", "R780") | 
+      substr(ICD10,1,3) %in% c("F10", "K70", "X45", "X65", "Y15") ~ "ASD",
+  #Drug poisoning definition taken from https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/methodologies/deathsrelatedtodrugpoisoninginenglandandwalesqmi
+    substr(ICD10, 1, 3) %in% c("F11", "F12", "F13", "F14", "F15", "F16", "F18", "F19", "X40", 
+                               "X41", "X42", "X43", "X44", "X60", "X61", "X62", "X63", "X64",
+                               "X85", "Y10", "Y11", "Y12", "Y13", "Y14") ~"DRD",
+    TRUE ~ "Other"),
          Sex=if_else(Sex==1, "Male", "Female")) %>% 
   na.omit()
 
@@ -97,7 +102,7 @@ ewdata_short <- ewdata %>%
   mutate(Age=case_when(
     Age %in% c("Neonates", "<1", "01-04", "05-09", "10-14", "15-19") ~ "Under 20",
     TRUE ~ Age)) %>% 
-  group_by(ASD, Year, Sex, Age) %>% 
+  group_by(Cause, Year, Sex, Age) %>% 
   summarise(Deaths=sum(Deaths), .groups="drop") %>% 
   merge(ewpop)%>% 
   mutate(Age=factor(Age, levels=c("Under 20", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", 
@@ -106,7 +111,7 @@ ewdata_short <- ewdata %>%
 
 png("Outputs/ASDEW21stC22.png", units="in", width=8, height=6, res=600)
 ewdata_short %>% 
-  filter(ASD==TRUE) %>% 
+  filter(Cause=="ASD") %>% 
   group_by(Year) %>% 
   summarise(Deaths=sum(Deaths), .groups="drop") %>% 
   ggplot(aes(x=Year, y=Deaths))+
@@ -122,7 +127,7 @@ dev.off()
 
 png("Outputs/ASDEW21stC22xSex.png", units="in", width=8, height=6, res=600)
 ewdata_short %>% 
-  filter(ASD==TRUE) %>% 
+  filter(Cause=="ASD") %>% 
   group_by(Year, Sex) %>% 
   summarise(Deaths=sum(Deaths), .groups="drop") %>% 
   ggplot(aes(x=Year, y=Deaths, colour=Sex, label=Sex))+
@@ -140,7 +145,7 @@ dev.off()
 #Lexis surface
 png("Outputs/ASDEW21stC22xAgeLexis.png", units="in", width=8, height=6, res=600)
 ewdata_short %>% 
-  filter(ASD==TRUE & Age!="Under 20") %>% 
+  filter(Cause=="ASD" & Age!="Under 20") %>% 
   group_by(Age,Year) %>% 
   summarise(Deaths=sum(Deaths), Pop=sum(Pop), .groups="drop") %>% 
   mutate(mortrate=Deaths*100000/Pop) %>% 
@@ -158,7 +163,7 @@ dev.off()
 #Age-specific lines - simple version
 png("Outputs/ASDEW21stC22xAge.png", units="in", width=12, height=6, res=600)
 ewdata_short %>% 
-  filter(ASD==TRUE) %>% 
+  filter(Cause=="ASD") %>% 
   group_by(Age,Year) %>% 
   summarise(Deaths=sum(Deaths), Pop=sum(Pop), .groups="drop") %>% 
   mutate(mortrate=Deaths*100000/Pop) %>% 
@@ -175,7 +180,7 @@ dev.off()
 
 #Age-specific lines - picking out 2021 changes
 plotdata <- ewdata_short %>% 
-  filter(ASD==TRUE) %>% 
+  filter(Cause=="ASD") %>% 
   group_by(Age,Year) %>% 
   summarise(Deaths=sum(Deaths), Pop=sum(Pop), .groups="drop") %>% 
   mutate(mortrate=Deaths*100000/Pop)
@@ -232,8 +237,8 @@ frame <- data.frame(Age=rep(c("Under 20", "20-24", "25-29", "30-34", "35-39", "4
   merge(ewpop)
 
 ASdata_sex <- ewdata_short %>% 
-  filter(ASD==TRUE) %>% 
-  select(-c(Pop, ASD)) %>% 
+  filter(Cause=="ASD") %>% 
+  select(-c(Pop, Cause)) %>% 
   merge(frame, all=T) %>% 
   mutate(Deaths=replace_na(Deaths, 0), mortrate=Deaths*100000/Pop) %>% 
   group_by(Year, Sex) %>% 
@@ -253,8 +258,8 @@ ggplot(data=ASdata_sex, aes(x=Year, y=ASDeaths, colour=Sex, label=Sex))+
 dev.off()
 
 ASdata_all <- ewdata_short %>% 
-  filter(ASD==TRUE) %>% 
-  select(-c(Pop, ASD)) %>% 
+  filter(Cause=="ASD") %>% 
+  select(-c(Pop, Cause)) %>% 
   merge(frame, all=T) %>% 
   mutate(Deaths=replace_na(Deaths, 0)) %>% 
   group_by(Year, Age) %>% 
@@ -283,7 +288,7 @@ dev.off()
 #By condition
 tiff("Outputs/ASDEW21stC22xCause.tiff", units="in", width=8, height=6, res=600)
 ewdata %>% 
-  filter(ASD==TRUE) %>% 
+  filter(Cause=="ASD") %>% 
   mutate(Condition=case_when(
     substr(ICD10,1,3)=="F10" ~ "Dependence-related",
     substr(ICD10, 1, 3) %in% c("X45", "Y65", "Y15") ~ "Poisoning",
@@ -307,8 +312,196 @@ ewdata %>%
 
 dev.off()
 
+###########################################
+#Drug poisoning deaths
+
+#Lexis surface
+png("Outputs/DRDEW21stC22xAgeLexis.png", units="in", width=8, height=6, res=600)
+ewdata_short %>% 
+  filter(Cause=="DRD") %>% 
+  group_by(Age,Year) %>% 
+  summarise(Deaths=sum(Deaths), Pop=sum(Pop), .groups="drop") %>% 
+  mutate(mortrate=Deaths*100000/Pop) %>% 
+  ggplot(aes(x=Year, y=Age, fill=mortrate))+
+  geom_tile()+
+  scale_fill_paletteer_c("viridis::turbo", limits=c(0,NA), name="Deaths\nper 100,000")+
+  coord_equal()+
+  theme_custom()+
+  labs(title="Drug poisoning deaths have risen during the pandemic",
+       subtitle="Rates of drug poisoning deaths by age for England & Wales 2001-2021",
+       caption="Mortality data from ONS, population data from mortality.org\nPlot by @VictimOfMaths")
+
+dev.off()
+
+#Age-specific lines - simple version
+png("Outputs/DRDEW21stC22xAge.png", units="in", width=12, height=6, res=600)
+ewdata_short %>% 
+  filter(Cause=="DRD") %>% 
+  group_by(Age,Year) %>% 
+  summarise(Deaths=sum(Deaths), Pop=sum(Pop), .groups="drop") %>% 
+  mutate(mortrate=Deaths*100000/Pop) %>% 
+  ggplot(aes(x=Year, y=mortrate))+
+  geom_area(fill="SkyBlue")+
+  geom_path(arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
+  scale_x_continuous(name="Age")+
+  scale_y_continuous(name="Annual deaths per 100,000")+
+  facet_wrap(~Age, strip.position="bottom", nrow=1)+
+  theme_custom()+
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(), axis.line.x=element_blank())
+
+dev.off()
+
+#Age-specific lines - picking out 2021 changes
+plotdata2 <- ewdata_short %>% 
+  filter(Cause=="DRD") %>% 
+  group_by(Age,Year) %>% 
+  summarise(Deaths=sum(Deaths), Pop=sum(Pop), .groups="drop") %>% 
+  mutate(mortrate=Deaths*100000/Pop)
+
+DRDplot <- ggplot()+
+  geom_area(data=plotdata2, aes(x=Year, y=mortrate), fill="Tomato")+
+  geom_path(data=plotdata2 %>% filter(Year<2021), aes(x=Year, y=mortrate), colour="Grey40", 
+            arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
+  geom_path(data=plotdata2 %>% filter(Year>=2020), aes(x=Year, y=mortrate), colour="#2c7fb8", 
+            arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
+  scale_x_continuous(name="Age")+
+  scale_y_continuous(name="Annual deaths per 100,000")+
+  facet_wrap(~Age, strip.position="bottom", nrow=1)+
+  theme_custom()+
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(), axis.line.x=element_blank(),
+        plot.subtitle=element_markdown())+
+  labs(title="Alcohol-specific deaths rose in 2021 in later middle-aged drinkers",
+       subtitle="Rates of death from causes attributable only to alcohol by age between 2001 and 2021. Changes in 2021 <span style='color:Tomato;'>shown in red.",
+       caption="Mortality data from ONS, population data from mortality.org\nPlot by @VictimOfMaths")
+
+DRDinset <- ggplot()+
+  geom_polygon(aes(x=c(1, 1:21, 21), 
+                   y=c(0,21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10,14,0)), 
+               fill="Tomato")+
+  geom_line(aes(x=c(1:20), 
+                y=c(21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10)), 
+            arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")), colour="Grey40")+
+  geom_line(aes(x=c(20,21), y=c(10,14)), arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")), 
+            colour="#2c7fb8")+
+  theme_classic()+
+  theme(axis.line=element_blank(), axis.text=element_blank(),axis.ticks=element_blank(),
+        axis.title=element_blank())
+
+DRDfull <- ggdraw()+
+  draw_plot(DRDplot)+
+  draw_plot(DRDinset, x=0.15, y=0.65, width=0.13, height=0.2)+
+  draw_label("2001", x=0.17, y=0.66, size=10, colour="Grey40")+
+  draw_label("2020", x=0.26, y=0.66, size=10, colour="Grey40")+
+  draw_label("2021", x=0.27, y=0.8, size=10, colour="#2c7fb8")+
+  draw_label("Key", x=0.17, y=0.85, size=11, fontface="bold")
+
+png("Outputs/DRDEW21stC22xAgev2.png", units="in", width=12, height=6, res=600)
+ggdraw(DRDfull)
+dev.off()
+
+#Age-standardisation
+ASdataD_sex <- ewdata_short %>% 
+  filter(Cause=="DRD") %>% 
+  select(-c(Pop, Cause)) %>% 
+  merge(frame, all=T) %>% 
+  mutate(Deaths=replace_na(Deaths, 0), mortrate=Deaths*100000/Pop) %>% 
+  group_by(Year, Sex) %>% 
+  summarise(ASDeaths=sum(mortrate*weight)/sum(weight), .groups="drop")
+
+png("Outputs/DRDEW21stC22xSexRate.png", units="in", width=8, height=6, res=600)
+ggplot(data=ASdataD_sex, aes(x=Year, y=ASDeaths, colour=Sex, label=Sex))+
+  geom_textline(show.legend=FALSE, hjust=0.6)+
+  scale_x_continuous(name="")+
+  scale_y_continuous(limits=c(0,NA), name="Age-standardised deaths per 100,000")+
+  scale_colour_manual(values=c("#00cc99", "#6600cc"), name="")+
+  theme_custom()+
+  labs(title="Drug poisoning deaths rose again for men and women in 2021",
+       subtitle="Age-standardised mortality rates from drug poisoning in England & Wales 2001-2021",
+       caption="Data from ONS' 21st Century Mortality dataset | Plot by @VictimOfMaths")
+
+dev.off()
+
+ASdataD_all <- ewdata_short %>% 
+  filter(Cause=="DRD") %>% 
+  select(-c(Pop, Cause)) %>% 
+  merge(frame, all=T) %>% 
+  mutate(Deaths=replace_na(Deaths, 0)) %>% 
+  group_by(Year, Age) %>% 
+  summarise(Deaths=sum(Deaths), Pop=sum(Pop), weight=sum(weight)/2, .groups="drop") %>% 
+  mutate(mortrate=Deaths*100000/Pop) %>% 
+  group_by(Year) %>% 
+  summarise(ASDeaths=sum(mortrate*weight)/sum(weight), .groups="drop") %>% 
+  mutate(abschange=ASDeaths-lag(ASDeaths, 1), relchange=abschange/lag(ASDeaths, 1),
+         label=paste0(if_else(relchange<0, "-", "+"), round(abs(relchange)*100, 1), "%"),
+         label=if_else(is.na(relchange), "", label))
+
+tiff("Outputs/DRDEW21stC22.tiff", units="in", width=8, height=6, res=600)
+ggplot(ASdataD_all, aes(x=Year, y=ASDeaths))+
+  geom_line(colour="Tomato")+
+  geom_text(aes(label=label, vjust=c(0,0.8,1,1,1,1,0.8,-0.2,1,0.8,-0.2,1,0.8,-0.5,0.8,0.8,-0.5,1,
+                                     0.8,0.8,0.8)), size=rel(2.5), colour="Grey40", hjust=-0.1)+
+  scale_x_continuous(name="")+
+  scale_y_continuous(limits=c(0,NA), name="Age-standardised deaths per 100,000")+
+  theme_custom()+
+  labs(title="Drug poisoning deaths rose again in 2021",
+       subtitle="Age-standardised mortality rates from drug poisoning in England & Wales 2001-2021",
+       caption="Data from ONS' 21st Century Mortality dataset | Plot by @VictimOfMaths")
+
+dev.off()
+
+#Combined plot
+plotdata3 <- ewdata_short %>% 
+  filter(Cause %in% c("ASD", "DRD")) %>% 
+  group_by(Age,Year, Cause) %>% 
+  summarise(Deaths=sum(Deaths), Pop=sum(Pop), .groups="drop") %>% 
+  mutate(mortrate=Deaths*100000/Pop)
+
+ASDDRDplot <- ggplot()+
+  geom_area(data=plotdata3 %>% filter(Cause=="ASD"), aes(x=Year, y=mortrate), fill="SkyBlue",
+            alpha=0.5)+
+  geom_area(data=plotdata3 %>% filter(Cause=="DRD"), aes(x=Year, y=mortrate), fill="Tomato",
+            alpha=0.5)+
+  geom_path(data=plotdata3 %>% filter(Cause=="ASD"), aes(x=Year, y=mortrate), colour="#0c2c84",
+            arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
+  geom_path(data=plotdata3 %>% filter(Cause=="DRD"), aes(x=Year, y=mortrate), colour="#990000",
+            arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
+  scale_x_continuous(name="Age")+
+  scale_y_continuous(name="Annual deaths per 100,000")+
+  facet_wrap(~Age, strip.position="bottom", nrow=1)+
+  theme_custom()+
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(), axis.line.x=element_blank(),
+        plot.subtitle=element_markdown())+
+  labs(title="Deaths from both alcohol and drugs have risen in recent years",
+       subtitle="Rates of death from <span style='color:#0c2c84;'>alcohol-specific causes</span> and <span style='color:#990000;'>drug poisoning</span> in England and Wales by age between 2001 and 2021",
+       caption="Mortality data from ONS, population data from mortality.org\nPlot by @VictimOfMaths")
+
+ASDDRDinset <- ggplot()+
+  geom_polygon(aes(x=c(1, 1:21, 21), 
+                   y=c(0,21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10,14,0)), 
+               fill="Grey70")+
+  geom_line(aes(x=c(1:21), 
+                y=c(21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10,14)), 
+            arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")), colour="Black")+
+  theme_classic()+
+  theme(axis.line=element_blank(), axis.text=element_blank(),axis.ticks=element_blank(),
+        axis.title=element_blank())
+
+ASDDRDfull <- ggdraw()+
+  draw_plot(ASDDRDplot)+
+  draw_plot(ASDDRDinset, x=0.15, y=0.65, width=0.13, height=0.2)+
+  draw_label("2001", x=0.17, y=0.66, size=10, colour="Black")+
+  draw_label("2021", x=0.27, y=0.66, size=10, colour="Black")+
+  draw_label("Key", x=0.17, y=0.85, size=11, fontface="bold")
+
+tiff("Outputs/ASDDRDEW21stC22xAge.tiff", units="in", width=12, height=6, res=600)
+ggdraw(ASDDRDfull)
+dev.off()
+
+
+
+
 ####################################
-#Validation using older version of the data
+#Validation of ASD figures using older version of the data
 #July 2021 version
 temp <- tempfile()
 url4 <- "https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/datasets/the21stcenturymortalityfilesdeathsdataset/current/previous/v9/21stcenturymortality202005072021135441.xls"
