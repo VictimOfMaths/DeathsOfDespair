@@ -487,7 +487,7 @@ nidata.2017 <- read_excel(file.path(nifile.2017, "CauseOfDeath_2017.xls"), sheet
 niallcause.2017 <- nidata.2017 %>% slice_head(n=2) 
 
 nidata.2017 <- nidata.2017 %>% slice(3:nrow(.))
-####################################TODO fix broken link
+
 nifile.2016 <- tempfile()
 niurl.2016 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/RG_tables_2016.zip"
 temp <- curl_download(url=niurl.2016, destfile=temp, quiet=FALSE, mode="wb")
