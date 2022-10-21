@@ -997,9 +997,13 @@ Combined_short <- UKsmoothed %>%
       Age<90 ~ 1500/5, TRUE ~ 1000
     )) %>% 
   group_by(Country, Cause, Sex, Year) %>% 
-  summarise(Dx_smt1D=sum(Dx_smt1D), pop=sum(pop), mx_std=weighted.mean(mx_smt1D, stdpop)*100000) %>% 
-  ungroup() 
+  summarise(Dx_smt1D=sum(Dx_smt1D), pop=sum(pop), 
+            mx_std=weighted.mean(mx_smt1D, stdpop)*100000, .groups="drop") %>% 
+  group_by(Country, Cause, Sex) %>% 
+  mutate(abschange=mx_std-lag(mx_std, n=1),
+         relchange=abschange/lag(mx_std, n=1))
 
+agg_png("Outputs/DoDPandemicLines.png", units="in", width=8, height=6, res=600)
 ggplot(Combined_short %>% filter(Cause!="Total" & Year>=2015), aes(x=Year, y=mx_std, colour=Country))+
   geom_rect(aes(xmin=2019.5, xmax=2021.5, ymin=0, ymax=45), fill="Grey92", colour=NA)+
   geom_line()+
@@ -1010,3 +1014,10 @@ ggplot(Combined_short %>% filter(Cause!="Total" & Year>=2015), aes(x=Year, y=mx_
   facet_grid(Sex~Cause)+
   theme_custom()+
   theme(legend.position="top")
+dev.off()
+
+ggplot(Combined_short %>% filter(Cause!="Total"), aes(x=Year, y=Cause, fill=abschange))+
+  geom_tile()+
+  facet_wrap(~Sex)+
+  theme_custom()
+  
