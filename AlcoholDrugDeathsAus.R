@@ -29,10 +29,6 @@ theme_custom <- function() {
 
 options(scipen=10000)
 
-#HMD credentials here
-username <- "c.r.angus@sheffield.ac.uk" 
-password <- "1574553541"
-
 #Download Australian ASD and DRD data
 temp <- tempfile()
 url.aus <- "https://www.abs.gov.au/statistics/health/causes-death/causes-death-australia/2021/2021_13%20Drug%20and%20alcohol-induced%20deaths%20%28Australia%29.xlsx"
