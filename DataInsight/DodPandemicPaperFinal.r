@@ -143,6 +143,8 @@ ewdata.wide <- ewdata.wide %>%
   relocate(Cause, agestart)
 
 #Download populations/exposures from HMD
+#Note that you will need to register with mortality.org and set this 
+#username and password up with {keyring} for this to work
 ewpop <- readHMDweb(CNTRY="GBRTENW", "Population", key_list("mortality.org")[1,2], 
                     key_get("mortality.org", key_list("mortality.org")[1,2]), fixup=FALSE) %>% 
   mutate(Age=as.numeric(Age), Age=if_else(is.na(Age), 110, Age)) %>% 
@@ -1038,7 +1040,7 @@ tabledata %>%
   gtsave("Outputs/DoDPandemicTable1.png")
 
 #Plot
-agg_png("Outputs/DoDPandemicPaperFig1.png", units="in", width=10, height=6, res=600)
+agg_tiff("Outputs/DoDPandemicPaperFig1.tiff", units="in", width=10, height=6, res=600)
 ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>% 
          mutate(Sex=factor(Sex, levels=c("Male", "Female"))), aes(x=Year, y=mx_std, colour=Cause))+
   geom_rect(aes(xmin=2019.5, xmax=2021.5, ymin=0, ymax=56), fill="Grey92", colour=NA)+
@@ -1052,7 +1054,7 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>%
   theme(legend.position="top")
 dev.off()
 
-agg_png("Outputs/DoDPandemicPaperFig1Alt.png", units="in", width=10, height=6, res=600)
+agg_tiff("Outputs/DoDPandemicPaperFig1Alt.tiff", units="in", width=10, height=6, res=600)
 ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000), aes(x=Year, y=mx_std, colour=Cause))+
   geom_hline(yintercept=0, colour="Grey20")+
   geom_line(alpha=0.3, show.legend=FALSE)+
@@ -1252,7 +1254,7 @@ NI_m/NI_f+
 dev.off()
 
 #One Megaplot
-agg_png("Outputs/DoDPandemicPaperFig2.png", units="in", width=8, height=16, res=600)
+agg_tiff("Outputs/DoDPandemicPaperFig2.tiff", units="in", width=8, height=16, res=600)
 ((EW_m+ggtitle("England & Wales"))/EW_f)/
   ((NI_m+ggtitle("Northern Ireland"))/NI_f)/
   ((Scot_m+ggtitle("Scotland"))/Scot_f)/
