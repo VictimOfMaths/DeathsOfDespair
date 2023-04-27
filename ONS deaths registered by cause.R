@@ -9,6 +9,8 @@ library(extrafont)
 library(patchwork)
 library(scales)
 library(ggtext)
+library(ggrepel)
+
 
 #Set common font for all plots
 font <- "Lato"
@@ -30,6 +32,55 @@ theme_custom <- function() {
 
 
 options(scipen=10000)
+
+#######################
+#OHID data for England#
+#######################
+temp <- tempfile()
+url <- "https://analytics.phe.gov.uk/apps/covid-19-indirect-effects/session/19a595cc94f2da6e984a27db4b62f54d/download/brf_data_button?w="
+temp <- curl_download(url=url, destfile=temp, quiet=FALSE, mode="wb")
+
+OHIDdata <- read.csv(temp) %>% 
+  filter(Category=="All ages" & Time.period.range=="Month") %>% 
+  mutate(Date=as.Date(Time.period, "%d/%m/%Y"),
+         Year=year(Date),
+         Month=month(Date),
+         #Adjust 2018 denominator as it's actually 2019/19 combined
+         Denominator=if_else(Year==2018, Denominator/2, Denominator),
+         Dx=Value*Denominator/100000) %>% 
+  arrange(Date) %>% 
+  group_by(Time.period.label) %>% 
+  mutate(AbsChange=Dx-Dx[Year==2018]) %>% 
+  ungroup() %>% 
+  group_by(Year) %>% 
+  mutate(cumsum=if_else(Year==2018, cumsum(Dx), cumsum(AbsChange))) %>% 
+  ungroup() %>% 
+  group_by(Time.period.label) %>% 
+  mutate(CumRelChange=cumsum/cumsum[Year==2018]) %>% 
+  ungroup()
+
+agg_tiff("Outputs/OHIDASD2022.tiff", units="in", width=8, height=6, res=800)
+ggplot(OHIDdata %>% filter(Year!=2018), 
+       aes(x=as.factor(Month), y=cumsum, group=as.factor(Year), colour=as.factor(Year)))+
+  geom_line(show.legend=FALSE)+
+  geom_hline(yintercept=0, colour="grey30")+
+  geom_text_repel(data=. %>% filter(Month==12),
+                  aes(label = Year),
+                  family = "Lato", fontface = "bold", direction = "y", box.padding = 0.4, hjust=0,
+                  xlim = c(12.1, NA_Date_), show.legend=FALSE, segment.color = NA)+
+  scale_y_continuous(limits=c(0,NA), name="Cumulative change in alcohol-specific deaths vs. 2018-19")+
+  scale_x_discrete(name="", 
+                   labels=c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))+
+  scale_colour_paletteer_d("ggthemr::solarized")+
+  theme_custom()+
+  expand_limits(x= c(0, 13))+
+  theme(plot.title=element_markdown())+
+  labs(title="Alcohol-specific deaths were higher in <span style='color:#dc322f;'>2022</span> than <span style='color:#073642;'>2020</span> or <span style='color:#268bd2;'>2021",
+       subtitle="Excess deaths from causes wholly-attributable to alcohol vs. 2018-19 baseline",
+       caption="Data from OHID | Plot by @VictimOfMaths")
+
+dev.off()
 
 #################
 #England & Wales#
@@ -181,19 +232,25 @@ shortdata %>% filter(Age=="Total" & Cause!="All cause" & Year>2010) %>%
   facet_wrap(~Cause, scales="free_y")+
   theme_custom()
 
+agg_tiff("Outputs/DoDONS2022xCause.tiff", units="in", width=9, height=6, res=800)
 shortdata %>% filter(Age=="Total" & Year >2010 &
                        Cause %in% c("Dependence", "Drug/alcohol poisoning", 
                                     "Liver disease", "Suicide (broad)")) %>% 
   mutate(flag=if_else(Year>=2020, 1, 0)) %>% 
   ggplot(aes(x=Year, y=Deaths))+
   geom_line(colour="grey40")+
-  geom_point(aes(colour=as.factor(flag)))+
+  geom_point(aes(colour=as.factor(flag)), size=3)+
   scale_x_continuous(breaks=c(2012, 2015, 2018, 2021))+
   scale_y_continuous(limits=c(0,NA))+
   scale_colour_manual(values=c("grey40", "tomato"))+
   facet_wrap(~Cause, scales="free_y")+
   theme_custom()+
-  theme(legend.position="none")
+  theme(legend.position="none", plot.title=element_markdown())+
+  labs(title="Deaths linked to alcohol have risen <span style='color:tomato;'>during the pandemic",
+       subtitle="Annual registered deaths from cause groupings linked to 'deaths of despair'\n",
+       caption="Data from ONS | Plot by @VictimOfMaths")
+
+dev.off()
 
 shorterdata <- shortdata %>% 
   mutate(ageband=case_when(
@@ -208,7 +265,7 @@ shorterdata <- shortdata %>%
   group_by(ageband, Year, Cause) %>% 
   summarise(Deaths=sum(Deaths), .groups="drop")
 
-agg_png("Outputs/DoDONS2022.png", units="in", width=10, height=6, res=800)
+agg_tiff("Outputs/DoDONS2022xCausexAge.tiff", units="in", width=10, height=6, res=800)
 shorterdata %>% filter(Year>2010 & Cause %in% c("Dependence", "Drug/alcohol poisoning", 
                                                 "Liver disease", "Suicide (broad)"),
                        !is.na(ageband)) %>% 
@@ -222,28 +279,12 @@ shorterdata %>% filter(Year>2010 & Cause %in% c("Dependence", "Drug/alcohol pois
   scale_colour_paletteer_d("colorblindr::OkabeIto")+
   facet_wrap(~ageband, nrow=1)+
   theme_custom()+
-  theme(legend.position="top")
+  theme(legend.position="top")+
+  labs(title="Liver disease deaths have risen sharply in all age groups over 35",
+       subtitle="Age-specific trajectories in death registrations by cause grouping in England & Wales",
+       caption="Data from ONS | Plot by @VictimOfMaths")
 dev.off()
   
-#
-#data %>% filter(Cause=="External causes of morbidity and mortality" & Age!="Total") %>% 
-#  ggplot(aes(x=Year, y=Deaths, fill=as.factor(Year)))+
-#  geom_col()+
-#  facet_wrap(~Age)+
-#  theme_custom()
-#
-#data2 <- data %>% 
-#  mutate(ageband=case_when(
-#    Age %in% c("20-24", "25-29", "30-34", "35-39", "40-44") ~ "20-44",
-#    Age %in% c("45-49", "50-54", "55-59", "60-64") ~ "45-64",
-#    Age %in% c("65-69", "70-74") ~ "65-74",
-#    Age %in% c("75-79", "80-84") ~ "75-84")) %>% 
-#  group_by(Year, ageband, `ICD-10 code`, Cause) %>% 
-#  summarise(Deaths=sum(Deaths), .groups="drop") %>% 
-#  spread(Year, Deaths) %>% 
-#  mutate(abschange=`2022`-`2021`,
-#         relchange=abschange/`2021`)
-
 ##########
 #Scotland#
 ##########
@@ -324,7 +365,7 @@ scotdata_year <- scotdata %>%
   summarise(Deaths=sum(Deaths), .groups="drop") %>% 
   mutate(flag=if_else(Year>=2019, 1, 0))
 
-agg_png("Outputs/DoDNRS2022.png", units="in", width=10, height=6, res=800)
+agg_tiff("Outputs/DoDNRS2022xCause.tiff", units="in", width=8, height=6, res=800)
 ggplot(scotdata_year, aes(x=Year, y=Deaths, colour=Cause, group=Cause))+
   geom_line(alpha=0.3)+
   geom_point(data=. %>% filter(Year==2019))+
@@ -332,5 +373,8 @@ ggplot(scotdata_year, aes(x=Year, y=Deaths, colour=Cause, group=Cause))+
                                                        length=unit(0.13, "cm")))+
   scale_y_continuous(limits=c(0,NA))+
   scale_colour_manual(values=c("#E69F00", "#009E73"))+
-  theme_custom()
+  theme_custom()+
+  labs(title="Deaths from alcohol-specific causes have fallen in 2022 in Scotland",
+       subtitle="Deaths registered in Scotland 2016-22 for specific causes",
+       caption="Data from NRS | Plot by @VictimOfMaths")
 dev.off()
