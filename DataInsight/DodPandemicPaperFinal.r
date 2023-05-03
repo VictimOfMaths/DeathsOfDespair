@@ -1,5 +1,8 @@
 rm(list=ls())
 
+#library(remotes)
+#install_github("timriffe/TR1/TR1/HMDHFDplus")
+
 library(curl)
 library(readxl)
 library(keyring)
@@ -8,7 +11,6 @@ library(HMDHFDplus)
 library(paletteer)
 library(ragg)
 library(extrafont)
-library(cowplot)
 library(patchwork)
 library(scales)
 library(ggtext)
@@ -146,11 +148,17 @@ ewdata.wide <- ewdata.wide %>%
 #Note that you will need to register with mortality.org and set this 
 #username and password up with {keyring} for this to work
 ewpop <- readHMDweb(CNTRY="GBRTENW", "Population", key_list("mortality.org")[1,2], 
-                    key_get("mortality.org", key_list("mortality.org")[1,2]), fixup=FALSE) %>% 
+                    key_get("mortality.org", key_list("mortality.org")[1,2]), fixup=TRUE) %>% 
   mutate(Age=as.numeric(Age), Age=if_else(is.na(Age), 110, Age)) %>% 
-  filter(Year>=2001) %>% 
+  filter(Year>=2001) 
+
+ewpop <- bind_rows(ewpop %>% filter(Year==2020) %>% 
+                     select("Year", "Age", "Male2", "Female2") %>% 
+                     mutate(Year=2021) %>% 
+                     set_names(c("Year", "Age", "Male", "Female")),
+                   ewpop %>% select(c("Year", "Age", "Male1", "Female1")) %>% 
+                     set_names(c("Year", "Age", "Male", "Female"))) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
-  select(c("Age", "Sex", "Year", "Ex")) %>% 
   spread(Year, Ex) %>% 
   mutate(Sex=if_else(Sex=="Male", 1, 2)) 
 
@@ -433,9 +441,15 @@ scotdata.wide <- scotdata %>%
 scotpop <- readHMDweb(CNTRY="GBR_SCO", "Population",  key_list("mortality.org")[1,2], 
                       key_get("mortality.org", key_list("mortality.org")[1,2]), fixup=FALSE) %>% 
   mutate(Age=as.numeric(Age), Age=if_else(is.na(Age), 110, Age)) %>% 
-  filter(Year>=2001) %>% 
+  filter(Year>=2001) 
+
+scotpop <- bind_rows(scotpop %>% filter(Year==2020) %>% 
+                       select("Year", "Age", "Male2", "Female2") %>% 
+                       mutate(Year=2021) %>% 
+                       set_names(c("Year", "Age", "Male", "Female")),
+                     scotpop %>% select("Year", "Age", "Male1", "Female1") %>% 
+                       set_names(c("Year", "Age", "Male", "Female"))) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
-  select(c("Age", "Sex", "Year", "Ex")) %>% 
   spread(Year, Ex) %>% 
   mutate(Sex=if_else(Sex=="Male", 1, 2))
 
@@ -872,9 +886,15 @@ nidata.wide <- nidata %>%
 nipop <- readHMDweb(CNTRY="GBR_NIR", "Population",  key_list("mortality.org")[1,2], 
                     key_get("mortality.org", key_list("mortality.org")[1,2]), fixup=FALSE) %>% 
   mutate(Age=as.numeric(Age), Age=if_else(is.na(Age), 110, Age)) %>% 
-  filter(Year>=2001) %>% 
+  filter(Year>=2001) 
+
+nipop <- bind_rows(nipop %>% filter(Year==2020) %>% 
+                     select("Year", "Age", "Male2", "Female2") %>% 
+                     mutate(Year=2021) %>% 
+                     set_names(c("Year", "Age", "Male", "Female")),
+                   nipop %>% select("Year", "Age", "Male1", "Female1") %>% 
+                     set_names(c("Year", "Age", "Male", "Female"))) %>%  
   gather(Sex, Ex, c("Male", "Female")) %>% 
-  select(c("Age", "Sex", "Year", "Ex")) %>% 
   spread(Year, Ex) %>% 
   mutate(Sex=if_else(Sex=="Male", 1, 2)) 
 
@@ -956,7 +976,7 @@ USdata <- bind_rows(US.DoD0021, US.AllCause0021) %>%
     is.na(ICD10) ~ "Total",
     substr(ICD10, 1, 3) %in% c("F10", "K70", "K73", "K74", "X45", "Y15") ~ "Alcohol",
     substr(ICD10, 1, 3) %in% c("F11", "F12", "F13", "F14", "F15", "F16", "F18", "F19", "X40", "X41", "X42",
-                 "X43", "X44", "X85", "Y10", "Y11", "Y12", "Y13", "Y14") ~ "Drugs",
+                               "X43", "X44", "X85", "Y10", "Y11", "Y12", "Y13", "Y14") ~ "Drugs",
     substr(ICD10, 1, 3) %in% c("U03", "Y87") | substr(ICD10, 1, 2) %in% c("X6", "X7", "X8") ~ "Suicide")) %>% 
   group_by(Year, Age, Sex, Cause) %>% 
   summarise(Dx=sum(Dx), .groups="drop") %>% 
@@ -978,6 +998,8 @@ USdata <- bind_rows(US.DoD0021, US.AllCause0021) %>%
 USpop <- readHMDweb(CNTRY="USA", "Population",  key_list("mortality.org")[1,2], 
                     key_get("mortality.org", key_list("mortality.org")[1,2]), fixup=FALSE) %>% 
   filter(Year>=1999) %>% 
+  select("Age", "Year", "Male1", "Female1") %>% 
+  set_names(c("Age", "Year", "Male", "Female")) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
   mutate(Age=if_else(Age=="110+", 110, as.double(Age))) %>% 
@@ -1023,7 +1045,7 @@ ASdata <- Raw %>%
 #Tabulate 2019-2021 changes
 tabledata <- ASdata %>%
   select(Year, Country, Cause, Sex, mx_std) %>% 
-  filter(Year %in% c(2019, 2021)) %>% 
+  filter(Year %in% c(2019, 2020, 2021)) %>% 
   spread(Year, mx_std) %>% 
   mutate(abschange=`2021`-`2019`, relchange=abschange/`2019`)
 
@@ -1036,7 +1058,7 @@ tabledata %>%
   group_by(Country, Cause) %>% 
   gt(rowname_col="Sex") %>% 
   fmt_percent(columns=relchange, decimals=1) %>% 
-  fmt_number(columns=c(`2019`, `2021`, abschange), decimals=1) %>% 
+  fmt_number(columns=c(`2019`, `2020`, `2021`, abschange), decimals=1) %>% 
   gtsave("Outputs/DoDPandemicTable1.png")
 
 #Plot
@@ -1060,7 +1082,7 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000), aes(x=Ye
   geom_line(alpha=0.3, show.legend=FALSE)+
   geom_line(data=ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2019),
             aes(x=Year, y=mx_std, colour=Cause), arrow=arrow(angle=25, type="closed", 
-                                                         length=unit(0.13, "cm")))+
+                                                             length=unit(0.13, "cm")))+
   geom_point(data=ASdata %>% filter(!Cause %in% c("Total", "Other") & Year==2019),
              aes(x=Year, y=mx_std, colour=Cause), show.legend=FALSE)+
   scale_x_continuous(name="")+
@@ -1069,6 +1091,70 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000), aes(x=Ye
   facet_grid(Sex~Country)+
   theme_custom()+
   theme(legend.position="top")
+dev.off()
+
+agg_tiff("Outputs/DoDPandemicPaperFig1Altv2.tiff", units="in", width=10, height=6, res=600)
+ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>% 
+         mutate(Sex=factor(Sex, levels=c("Male", "Female"))), aes(x=Year, y=mx_std, colour=Country))+
+  geom_rect(aes(xmin=2019.5, xmax=2021.5, ymin=0, ymax=56), fill="Grey92", colour=NA)+
+  geom_line()+
+  geom_point()+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Age-standardised deaths per 100,000")+
+  scale_colour_manual(values=c("#FFCE4E", "#3d98d3", "#ff363c", "#7559a2"), name="")+
+  facet_grid(Sex~Cause)+
+  theme_custom()+
+  theme(legend.position="top")
+dev.off()
+
+agg_tiff("Outputs/DoDPandemicPaperFig1Altv2Scd.tiff", units="in", width=8, height=6, res=600)
+ggplot(ASdata %>% filter(Cause=="Suicide" & Year>=2000) %>% 
+         mutate(Sex=factor(Sex, levels=c("Male", "Female"))), aes(x=Year, y=mx_std, colour=Country))+
+  geom_rect(aes(xmin=2019.5, xmax=2021.5, ymin=0, ymax=35), fill="Grey92", colour=NA)+
+  geom_line()+
+  geom_point()+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Age-standardised deaths per 100,000")+
+  scale_colour_manual(values=c("#FFCE4E", "#3d98d3", "#ff363c", "#7559a2"), name="")+
+  facet_grid(~Sex)+
+  theme_custom()+
+  theme(legend.position="top")+
+  labs(title="Deaths by suicide fell below pre-pandemic trends in 2020-21",
+       caption="Data from ONS, NISRA, NRS & CDC | Plot by @VictimOfMaths")
+dev.off()
+
+agg_tiff("Outputs/DoDPandemicPaperFig1Altv2Alc.tiff", units="in", width=8, height=6, res=600)
+ggplot(ASdata %>% filter(Cause=="Alcohol" & Year>=2000) %>% 
+         mutate(Sex=factor(Sex, levels=c("Male", "Female"))), aes(x=Year, y=mx_std, colour=Country))+
+  geom_rect(aes(xmin=2019.5, xmax=2021.5, ymin=0, ymax=55), fill="Grey92", colour=NA)+
+  geom_line()+
+  geom_point()+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Age-standardised deaths per 100,000")+
+  scale_colour_manual(values=c("#FFCE4E", "#3d98d3", "#ff363c", "#7559a2"), name="")+
+  facet_grid(~Sex)+
+  theme_custom()+
+  theme(legend.position="top")+
+  labs(title="Deaths due to alcohol rose everywhere during the pandemic",
+       subtitle="Age-standardised mortality rates from causes solely caused by alcohol",
+       caption="Data from ONS, NISRA, NRS & CDC | Plot by @VictimOfMaths")
+dev.off()
+
+agg_tiff("Outputs/DoDPandemicPaperFig1Altv2Drg.tiff", units="in", width=8, height=6, res=600)
+ggplot(ASdata %>% filter(Cause=="Drugs" & Year>=2000) %>% 
+         mutate(Sex=factor(Sex, levels=c("Male", "Female"))), aes(x=Year, y=mx_std, colour=Country))+
+  geom_rect(aes(xmin=2019.5, xmax=2021.5, ymin=0, ymax=56), fill="Grey92", colour=NA)+
+  geom_line()+
+  geom_point()+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Age-standardised deaths per 100,000")+
+  scale_colour_manual(values=c("#FFCE4E", "#3d98d3", "#ff363c", "#7559a2"), name="")+
+  facet_grid(~Sex)+
+  theme_custom()+
+  theme(legend.position="top")+
+  labs(title="Pre-pandemic rises in drug deaths have accelerated in the US,\nbut levelled off in Scotland",
+       subtitle="Age-standardised mortality rates for drug-related deaths",
+       caption="Data from ONS, NISRA, NRS & CDC | Plot by @VictimOfMaths")
 dev.off()
 
 #Set data up for grouped path plots
@@ -1092,7 +1178,7 @@ USA_m <- ggplot()+
              aes(x=Year, y=mx, colour=Cause), show.legend=FALSE)+
   facet_wrap(~Age, strip.position="bottom", nrow=1)+
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="")+
-  scale_y_continuous(name="Deaths per 100,000", limits=c(0,120))+
+  scale_y_continuous(name="Deaths per 100,000", limits=c(0,90))+
   scale_x_continuous(name="Age")+
   theme_custom()+
   theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(), axis.line.x=element_blank())+
@@ -1109,7 +1195,7 @@ USA_f <-  ggplot()+
              aes(x=Year, y=mx, colour=Cause), show.legend=FALSE)+
   facet_wrap(~Age, strip.position="bottom", nrow=1)+
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="")+
-  scale_y_continuous(name="Deaths per 100,000", limits=c(0,120))+
+  scale_y_continuous(name="Deaths per 100,000", limits=c(0,90))+
   scale_x_continuous(name="Age")+
   theme_custom()+
   theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(), axis.line.x=element_blank())+
@@ -1135,7 +1221,7 @@ EW_m <- ggplot()+
              aes(x=Year, y=mx, colour=Cause), show.legend=FALSE)+
   facet_wrap(~Age, strip.position="bottom", nrow=1)+
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="")+
-  scale_y_continuous(name="Deaths per 100,000", limits=c(0,120))+
+  scale_y_continuous(name="Deaths per 100,000", limits=c(0,50))+
   scale_x_continuous(name="Age")+
   theme_custom()+
   theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(), axis.line.x=element_blank())+
@@ -1152,7 +1238,7 @@ EW_f <-  ggplot()+
              aes(x=Year, y=mx, colour=Cause), show.legend=FALSE)+
   facet_wrap(~Age, strip.position="bottom", nrow=1)+
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="")+
-  scale_y_continuous(name="Deaths per 100,000", limits=c(0,120))+
+  scale_y_continuous(name="Deaths per 100,000", limits=c(0,50))+
   scale_x_continuous(name="Age")+
   theme_custom()+
   theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(), axis.line.x=element_blank())+
@@ -1221,7 +1307,7 @@ NI_m <- ggplot()+
              aes(x=Year, y=mx, colour=Cause), show.legend=FALSE)+
   facet_wrap(~Age, strip.position="bottom", nrow=1)+
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="")+
-  scale_y_continuous(name="Deaths per 100,000", limits=c(0,120))+
+  scale_y_continuous(name="Deaths per 100,000", limits=c(0,85))+
   scale_x_continuous(name="Age")+
   theme_custom()+
   theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(), axis.line.x=element_blank())+
@@ -1238,7 +1324,7 @@ NI_f <-  ggplot()+
              aes(x=Year, y=mx, colour=Cause), show.legend=FALSE)+
   facet_wrap(~Age, strip.position="bottom", nrow=1)+
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="")+
-  scale_y_continuous(name="Deaths per 100,000", limits=c(0,120))+
+  scale_y_continuous(name="Deaths per 100,000", limits=c(0,85))+
   scale_x_continuous(name="Age")+
   theme_custom()+
   theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(), axis.line.x=element_blank())+
@@ -1263,3 +1349,214 @@ agg_tiff("Outputs/DoDPandemicPaperFig2.tiff", units="in", width=8, height=16, re
 
 dev.off()
 
+#Supplementary check that alcohol-specific trends are comparable using 
+#our definition and the official ONS one 
+temp <- tempfile()
+ONSASD <- "https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/healthandsocialcare/causesofdeath/datasets/alcoholspecificdeathsbysexagegroupandindividualcauseofdeath/current/deathsbyindividualcause.xlsx"
+ONSASD <- curl_download(url=ONSASD, destfile=temp, quiet=FALSE, mode="wb")
+
+UKASD <- read_excel(ONSASD, sheet="Table 2", range="A5:X950") %>% 
+  mutate(Country="England & Wales") %>% 
+  bind_rows(read_excel(ONSASD, sheet="Table 3", range="A5:X950") %>% 
+              mutate(Country="England & Wales")) %>% 
+  bind_rows(read_excel(ONSASD, sheet="Table 4", range="A5:X950") %>% 
+              mutate(Country="Scotland")) %>% 
+  bind_rows(read_excel(ONSASD, sheet="Table 5", range="A5:X950") %>% 
+              mutate(Country="Northern Ireland")) %>% 
+  gather(Age, Deaths, c(5:(ncol(.)-1))) %>% 
+  filter(Sex!="Persons" & !Age %in% c("<1", "01-04", "05-09")) %>% 
+  rename("Year"="Year [note 3]") %>% 
+  group_by(Year, Sex, Country, Age) %>% 
+  summarise(Deaths=sum(Deaths), .groups="drop") %>% 
+  mutate(agestart=as.numeric(substr(Age, 1, 2)),
+         stdpop=case_when(
+           agestart==10 ~ 5500, agestart==15 ~ 5500, agestart==20 ~ 6000, agestart==25 ~ 6000, 
+           agestart==30 ~ 6500, agestart==35 ~ 7000, agestart==40 ~ 7000, agestart==45 ~ 7000, 
+           agestart==50 ~ 7000, agestart==55 ~ 6500, agestart==60 ~ 6000, agestart==65 ~ 5500, 
+           agestart==70 ~ 5000, agestart==75 ~ 4000, agestart==80 ~ 2500, agestart==85 ~ 1500, 
+           agestart==90 ~ 1000),
+         Sex=if_else(Sex=="Males", 1, 2)) %>% 
+  #Bring in populations
+  merge(bind_rows(scotpop.grouped %>% gather(Year, Pop, c(3:23)) %>% 
+                    mutate(Country="Scotland"),
+                  ewpop.grouped %>% gather(Year, Pop, c(3:23)) %>% 
+                    mutate(Country="England & Wales"),
+                  nipop.grouped %>% gather(Year, Pop, c(3:23)) %>% 
+                    mutate(Country="Northern Ireland"))) %>% 
+  mutate(mx=Deaths*100000/Pop) %>% 
+  group_by(Country, Sex, Year) %>% 
+  summarise(Dx=sum(Deaths), mx_std=weighted.mean(mx, stdpop, na.rm=TRUE), .groups="drop")
+
+#Bring in US alcohol-induced deaths
+#1999-2020
+temp <- tempfile()
+US.AID9920 <- "https://raw.githubusercontent.com/VictimOfMaths/Publications/master/DoDPandemic/USAlcoholInducedDeaths.txt"
+temp <- curl_download(url=US.AID9920, destfile=temp, quiet=FALSE, mode="wb")
+
+US.AID9920 <- read.csv(temp, sep="\t") %>% 
+  filter(Notes=="" & !is.na(Deaths)) 
+
+#2021
+temp <- tempfile()
+US.AID21 <- "https://raw.githubusercontent.com/VictimOfMaths/Publications/master/DoDPandemic/USAlcoholInducedDeaths2021.txt"
+temp <- curl_download(url=US.AID21, destfile=temp, quiet=FALSE, mode="wb")
+
+US.AID21 <- read.csv(temp, sep="\t") %>% 
+  filter(Notes=="" & !is.na(Deaths)) %>% 
+  mutate(Year.Code=2021)
+
+US.AID <- bind_rows(US.AID9920, US.AID21) %>% 
+  select(Year.Code, Five.Year.Age.Groups.Code, Gender, Deaths) %>% 
+  set_names("Year", "Age", "Sex", "Dx") %>% 
+  mutate(agestart=as.numeric(substr(Age, 1, 2)),
+         agestart=if_else(agestart>85, 85, agestart)) %>% 
+  group_by(Year, agestart, Sex, Dx) %>% 
+  summarise(Dx=sum(Dx), .groups="drop") %>% 
+  merge(USpop) %>% 
+  mutate(stdpop=case_when(
+    agestart==10 ~ 5500, agestart==15 ~ 5500, agestart==20 ~ 6000, agestart==25 ~ 6000, 
+    agestart==30 ~ 6500, agestart==35 ~ 7000, agestart==40 ~ 7000, agestart==45 ~ 7000, 
+    agestart==50 ~ 7000, agestart==55 ~ 6500, agestart==60 ~ 6000, agestart==65 ~ 5500, 
+    agestart==70 ~ 5000, agestart==75 ~ 4000, agestart==80 ~ 2500, agestart==85 ~ 2500),
+    mx=Dx*100000/Ex) %>% 
+  group_by(Year, Sex) %>% 
+  summarise(Dx=sum(Dx), `ONS definition`=weighted.mean(mx, stdpop, na.rm=TRUE), .groups="drop") %>% 
+  mutate(Country="USA")
+
+#Combine with our estimates
+ASDcompare <- UKASD %>% 
+  rename("ONS definition"="mx_std") %>% 
+  mutate(Sex=if_else(Sex==1, "Male", "Female")) %>% 
+  select(Year, Country, Sex, `ONS definition`) %>% 
+  bind_rows(US.AID) %>% 
+  merge(ASdata %>% filter(Cause=="Alcohol") %>% 
+          rename("Our definition"="mx_std") %>% 
+          select(Year, Country, Sex, `Our definition`)) %>% 
+  gather(Definition, ASMR, c("ONS definition", "Our definition")) %>% 
+  mutate(Sex=factor(Sex, levels=c("Male", "Female")))
+
+#Plot
+agg_png("Outputs/DoDPandemicFigS1.png", units="in", width=12, height=6, res=600)
+ggplot(ASDcompare, aes(x=Year, y=ASMR, colour=Definition))+
+  geom_line()+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Age-standardised deaths per 100,000", 
+                     limits=c(0,NA))+
+  scale_colour_paletteer_d("lisa::Jean_MichelBasquiat_1", name="")+
+  facet_grid(Sex~Country)+
+  theme_custom()+
+  theme(legend.position="top")
+
+dev.off()
+
+#Comparison of drug-related deaths
+#Data from England & Wales
+temp <- tempfile()
+EWDRD <- "https://www.ons.gov.uk/generator?uri=/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/bulletins/deathsrelatedtodrugpoisoninginenglandandwales/2021registrations/009ff672&format=xls"
+temp <- curl_download(url=EWDRD, destfile=temp, quiet=FALSE, mode="wb")
+
+EWDRD <- read_excel(temp, range="A7:D36") %>% 
+  set_names("Year", "Persons", "Male", "Female") %>% 
+  filter(Year>=2001) %>% 
+  gather(Sex, `ONS definition`, c(3,4)) %>% 
+  select(-Persons) %>% 
+  #ONS data is per million, so correct to rates per 100,000
+  mutate(`ONS definition`=as.numeric(`ONS definition`)/10,
+         Year=as.numeric(Year))
+
+#Bring in US drug-induced deaths
+#1999-2020
+temp <- tempfile()
+US.DID9920 <- "https://raw.githubusercontent.com/VictimOfMaths/Publications/master/DoDPandemic/USDrugInducedDeaths.txt"
+temp <- curl_download(url=US.DID9920, destfile=temp, quiet=FALSE, mode="wb")
+
+US.DID9920 <- read.csv(temp, sep="\t")
+
+#2021
+temp <- tempfile()
+US.DID21 <- "https://raw.githubusercontent.com/VictimOfMaths/Publications/master/DoDPandemic/USDrugInducedDeaths2021.txt"
+temp <- curl_download(url=US.DID21, destfile=temp, quiet=FALSE, mode="wb")
+
+US.DID21 <- read.csv(temp, sep="\t") %>% 
+  filter(Notes=="" & !is.na(Deaths)) %>% 
+  mutate(Year.Code=2021)
+
+US.DID <- bind_rows(US.DID9920, US.DID21) %>% 
+  filter(Notes=="" & !is.na(Deaths)) %>% 
+  select(Year.Code, Five.Year.Age.Groups.Code, Gender, Deaths) %>% 
+  set_names("Year", "Age", "Sex", "Dx") %>% 
+  mutate(agestart=as.numeric(substr(Age, 1, 2)),
+         agestart=if_else(agestart>85, 85, agestart)) %>% 
+  group_by(Year, agestart, Sex, Dx) %>% 
+  summarise(Dx=sum(Dx), .groups="drop") %>% 
+  merge(USpop) %>% 
+  mutate(stdpop=case_when(
+    agestart==10 ~ 5500, agestart==15 ~ 5500, agestart==20 ~ 6000, agestart==25 ~ 6000, 
+    agestart==30 ~ 6500, agestart==35 ~ 7000, agestart==40 ~ 7000, agestart==45 ~ 7000, 
+    agestart==50 ~ 7000, agestart==55 ~ 6500, agestart==60 ~ 6000, agestart==65 ~ 5500, 
+    agestart==70 ~ 5000, agestart==75 ~ 4000, agestart==80 ~ 2500, agestart==85 ~ 2500),
+    mx=Dx*100000/Ex) %>% 
+  group_by(Year, Sex) %>% 
+  summarise(Dx=sum(Dx), `ONS definition`=weighted.mean(mx, stdpop, na.rm=TRUE), .groups="drop") %>% 
+  mutate(Country="USA") %>% 
+  select(-Dx)
+
+DRDcompare <- bind_rows(EWDRD %>% mutate(Country="England & Wales"), 
+                        US.DID) %>% 
+  merge(ASdata %>% filter(Country %in% c("England & Wales", "USA") & 
+                            Cause=="Drugs")) %>% 
+  gather(Definition, ASMR, c(`ONS definition`, mx_std)) %>% 
+  mutate(Sex=factor(Sex, levels=c("Male", "Female")),
+         Definition=if_else(Definition=="mx_std", "Our definition",
+                            Definition))
+
+agg_png("Outputs/DoDPandemicFigS3.png", units="in", width=8, height=6, res=600)
+ggplot(DRDcompare, aes(x=Year, y=ASMR, colour=Definition))+
+  geom_line()+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Age-standardised deaths per 100,000", 
+                     limits=c(0,NA))+
+  scale_colour_paletteer_d("lisa::Jean_MichelBasquiat_1", name="",
+                           labels=c("'Drug poisoning'/'drug induced'",
+                                    "Our definition"))+
+  facet_grid(Sex~Country)+
+  theme_custom()+
+  theme(legend.position="top")
+
+dev.off()
+
+#Comparison of suicide rates
+#Data from England & Wales
+temp <- tempfile()
+EWScd <- "https://www.ons.gov.uk/generator?uri=/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/bulletins/suicidesintheunitedkingdom/2021registrations/3e9df01f&format=xls"
+temp <- curl_download(url=EWScd, destfile=temp, quiet=FALSE, mode="wb")
+
+EWScd <- read_excel(temp, range="A7:D48") %>% 
+  set_names("Year", "Persons", "Male", "Female") %>% 
+  filter(Year>=2001) %>% 
+  gather(Sex, `ONS definition`, c(3,4)) %>% 
+  select(-Persons) %>% 
+  #ONS data is per million, so correct to rates per 100,000
+  mutate(`ONS definition`=as.numeric(`ONS definition`),
+         Year=as.numeric(Year))
+
+Scdcompare <- EWScd %>% 
+  merge(ASdata %>% filter(Cause=="Suicide" & Country=="England & Wales")) %>% 
+  rename("Our definition"="mx_std") %>% 
+  gather(Definition, ASMR, c(`ONS definition`, `Our definition`)) %>% 
+  mutate(Sex=factor(Sex, levels=c("Male", "Female")))
+
+agg_png("Outputs/DoDPandemicFigS4.png", units="in", width=8, height=5, res=600)
+ggplot(Scdcompare, aes(x=Year, y=ASMR, colour=Definition))+
+  geom_line()+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Age-standardised deaths per 100,000", 
+                     limits=c(0,NA))+
+  scale_colour_paletteer_d("lisa::Jean_MichelBasquiat_1", name="",
+                           labels=c("Published ONS figures",
+                                    "Our definition"))+
+  facet_grid(~Sex)+
+  theme_custom()+
+  theme(legend.position="top")
+
+dev.off()
