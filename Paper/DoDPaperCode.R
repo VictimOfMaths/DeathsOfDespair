@@ -14,6 +14,9 @@ library(extrafont)
 library(RcppRoll)
 library(pdftools)
 library(gt)
+library(patchwork)
+library(keyring)
+library(scales)
 
 #Set common font for all plots
 font <- "Lato"
@@ -35,10 +38,6 @@ theme_custom <- function() {
 
 
 options(scipen=10000)
-
-#HMD credentials here
-username <- "" 
-password <- ""
 
 #########################################################
 #Start by pulling together all the data and tidying it up
@@ -172,7 +171,8 @@ ewdata.wide <- ewdata.wide %>%
   relocate(Cause, agestart)
 
 #Download populations/exposures from HMD
-ewpop <- readHMDweb(CNTRY="GBRTENW", "Exposures_1x1", username, password) %>% 
+ewpop <- readHMDweb(CNTRY="GBRTENW", "Exposures_1x1",  key_list("mortality.org")[1,2], 
+                    key_get("mortality.org", key_list("mortality.org")[1,2])) %>% 
   filter(Year>=2001) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
@@ -191,7 +191,7 @@ ewpop.grouped <- ewpop %>%
     Age<55 ~ 50, Age<60 ~ 55, Age<65 ~ 60, Age<70 ~ 65, Age<75 ~ 70, Age<80 ~ 75,
     Age<85 ~ 80, TRUE ~ 85)) %>% 
   group_by(Sex, agestart) %>%
-  summarise(across(`2001`:`2019`, sum, na.rm=TRUE)) %>% 
+  summarise(across(`2001`:`2019`, \(x) sum(x, na.rm = TRUE))) %>% 
   ungroup()
 
 ##########
@@ -420,7 +420,8 @@ scotdata.wide <- scotdata %>%
   relocate(Cause, agestart)
 
 #Download populations
-scotpop <- readHMDweb(CNTRY="GBR_SCO", "Exposures_1x1", username, password) %>% 
+scotpop <- readHMDweb(CNTRY="GBR_SCO", "Exposures_1x1",  key_list("mortality.org")[1,2], 
+                      key_get("mortality.org", key_list("mortality.org")[1,2])) %>% 
   filter(Year>=2001) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
@@ -788,7 +789,8 @@ nidata.wide <- nidata %>%
   relocate(Cause, agestart)
 
 #Download populations
-nipop <- readHMDweb(CNTRY="GBR_NIR", "Exposures_1x1", username, password) %>% 
+nipop <- readHMDweb(CNTRY="GBR_NIR", "Exposures_1x1",  key_list("mortality.org")[1,2], 
+                    key_get("mortality.org", key_list("mortality.org")[1,2])) %>% 
   filter(Year>=2001) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
@@ -961,7 +963,8 @@ Candata <- bind_rows(Can.can, Can.men, Can.dig, Can.ext) %>%
 #Bring in exposures/populations from HMD 
 
 #Download populations
-Canpop <- readHMDweb(CNTRY="CAN", "Exposures_1x1", username, password) %>% 
+Canpop <- readHMDweb(CNTRY="CAN", "Exposures_1x1",  key_list("mortality.org")[1,2], 
+                     key_get("mortality.org", key_list("mortality.org")[1,2])) %>% 
   filter(Year>=2000) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
@@ -1081,7 +1084,8 @@ USdata <- bind_rows(US.alc, US.drg, US.scd, US.tot) %>%
   gather(Cause, Dx, c(4:8))
 
 #Bring in exposures/populations from HMD as CDC data is missing populations for 85+
-USpop <- readHMDweb(CNTRY="USA", "Exposures_1x1", username, password) %>% 
+USpop <- readHMDweb(CNTRY="USA", "Exposures_1x1",  key_list("mortality.org")[1,2], 
+                    key_get("mortality.org", key_list("mortality.org")[1,2])) %>% 
   filter(Year>=1999) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
   select(c("Age", "Sex", "Year", "Ex")) %>% 
@@ -1366,8 +1370,7 @@ Combined_short %>%
 
 dev.off()
 
-agg_png("Outputs/DoD2c_Alcohol.png", units="in", width=10, height=6, res=500)
-Combined_short %>% 
+Fig2c <- Combined_short %>% 
   filter(Cause=="Alcohol" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
   ggplot()+
   geom_line(aes(x=Year, y=mx_std_roll, colour=Country))+
@@ -1378,10 +1381,7 @@ Combined_short %>%
   theme(panel.background=element_rect(fill="Grey95"),
         axis.text.x=element_text(angle=45, hjust=1, vjust=1))
 
-dev.off()
-
-agg_png("Outputs/DoD2a_Drugs.png", units="in", width=10, height=6, res=500)
-Combined_short %>% 
+Fig2a <- Combined_short %>% 
   filter(Cause=="Drugs" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
   ggplot()+
   geom_line(aes(x=Year, y=mx_std_roll, colour=Country))+
@@ -1392,10 +1392,7 @@ Combined_short %>%
   theme(panel.background=element_rect(fill="Grey95"),
         axis.text.x=element_text(angle=45, hjust=1, vjust=1))
 
-dev.off()
-
-agg_png("Outputs/DoD2b_Suicide.png", units="in", width=10, height=6, res=500)
-Combined_short %>% 
+Fig2b <- Combined_short %>% 
   filter(Cause=="Suicide" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
   ggplot()+
   geom_line(aes(x=Year, y=mx_std_roll, colour=Country))+
@@ -1406,6 +1403,21 @@ Combined_short %>%
   theme(panel.background=element_rect(fill="Grey95"),
         axis.text.x=element_text(angle=45, hjust=1, vjust=1))
 
+agg_png("Outputs/DoD2c_Alcohol.png", units="in", width=10, height=6, res=500)
+Fig2c
+dev.off()
+
+agg_png("Outputs/DoD2a_Drugs.png", units="in", width=10, height=6, res=500)
+Fig2a
+dev.off()
+
+agg_png("Outputs/DoD2b_Suicide.png", units="in", width=10, height=6, res=500)
+Fig2b
+dev.off()
+
+agg_png("Outputs/DoD2abc.png", units="in", width=10, height=20, res=500)
+(Fig2a+ggtitle("a) Drugs"))/(Fig2b+ggtitle("b) Suicide"))/(Fig2c+ggtitle("c) Alcohol"))+
+  plot_layout(guides="collect")
 dev.off()
 
 #Repeat with 10-year cohort bands
@@ -1923,3 +1935,177 @@ table_m_supp_us <- gt(tabledata_m_supp %>% select(ageband, Cause, starts_with("U
 
 gtsave(table_f_supp_us, "Outputs/DoDTableFemale_supp_us.png")
 gtsave(table_m_supp_us, "Outputs/DoDTableMale_supp_us.png", vwidth=1200)
+
+######################################
+#Analysis of proportions of death
+Propdata <- Combined_short %>% 
+  group_by(ageband, Country, Sex, Year) %>% 
+  mutate(DeathProp=Dx_smt1D/Dx_smt1D[Cause=="Total"]) %>% 
+  ungroup()
+
+agg_png("Outputs/DoDPaperDeathProportionsU35.png", units="in", width=9, height=6, res=800)
+Propdata %>% filter(!Cause %in% c("Total", "DoD") & ageband=="<35") %>% 
+  ggplot(aes(x=Year, y=DeathProp, fill=Cause))+
+  geom_area(position="stack")+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Proportion of all deaths", 
+                     labels=label_percent(accuracy=1))+
+  scale_fill_manual(values=c("#00A1FF", "#E69F00", "#CC5395"))+
+  facet_grid(Sex~Country)+
+  theme_custom()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
+  labs(title="Ages 10-34")
+dev.off()
+
+agg_png("Outputs/DoDPaperDeathProportions3544.png", units="in", width=9, height=6, res=800)
+Propdata %>% filter(!Cause %in% c("Total", "DoD") & ageband=="35-44") %>% 
+  ggplot(aes(x=Year, y=DeathProp, fill=Cause))+
+  geom_area(position="stack")+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Proportion of all deaths", 
+                     labels=label_percent(accuracy=1))+
+  scale_fill_manual(values=c("#00A1FF", "#E69F00", "#CC5395"))+
+  facet_grid(Sex~Country)+
+  theme_custom()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
+  labs(title="Ages 35-44")
+dev.off()
+
+agg_png("Outputs/DoDPaperDeathProportions4554.png", units="in", width=9, height=6, res=800)
+Propdata %>% filter(!Cause %in% c("Total", "DoD") & ageband=="45-54") %>% 
+  ggplot(aes(x=Year, y=DeathProp, fill=Cause))+
+  geom_area(position="stack")+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Proportion of all deaths", 
+                     labels=label_percent(accuracy=1))+
+  scale_fill_manual(values=c("#00A1FF", "#E69F00", "#CC5395"))+
+  facet_grid(Sex~Country)+
+  theme_custom()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
+  labs(title="Ages 45-54")
+dev.off()
+
+agg_png("Outputs/DoDPaperDeathProportions5564.png", units="in", width=9, height=6, res=800)
+Propdata %>% filter(!Cause %in% c("Total", "DoD") & ageband=="55-64") %>% 
+  ggplot(aes(x=Year, y=DeathProp, fill=Cause))+
+  geom_area(position="stack")+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Proportion of all deaths", 
+                     labels=label_percent(accuracy=1))+
+  scale_fill_manual(values=c("#00A1FF", "#E69F00", "#CC5395"))+
+  facet_grid(Sex~Country)+
+  theme_custom()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
+  labs(title="Ages 55-64")
+dev.off()
+
+agg_png("Outputs/DoDPaperDeathProportions65plus.png", units="in", width=9, height=6, res=800)
+Propdata %>% filter(!Cause %in% c("Total", "DoD") & ageband=="65+") %>% 
+  ggplot(aes(x=Year, y=DeathProp, fill=Cause))+
+  geom_area(position="stack")+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Proportion of all deaths", 
+                     labels=label_percent(accuracy=1))+
+  scale_fill_manual(values=c("#00A1FF", "#E69F00", "#CC5395"))+
+  facet_grid(Sex~Country)+
+  theme_custom()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
+  labs(title="Ages 65+")
+dev.off()
+
+#Graphs of all-cause deaths
+Combined_short %>% filter(Cause=="Total") %>% 
+  ggplot(aes(x=Year, y=mx_std, colour=Country))+
+  geom_line()+
+  scale_x_continuous(name="")+
+  scale_y_continuous(trans="log10")+
+  scale_colour_paletteer_d("awtools::mpalette", name="")+
+  facet_grid(Sex~ageband)+
+  theme_custom()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+
+#Repeat main paper figures for combined 35-64 age group, starting by age-standardising within that group
+Combined_3564 <- Combined %>% 
+  filter(Year>2000 & Age>=35 & Age<65) %>% 
+  mutate(stdpop=case_when(
+      Age<40 ~ 7000/5, Age<45 ~ 7000/5, Age<50 ~ 7000/5, Age<55 ~ 7000/5, Age<60 ~ 6500/5,
+      Age<65 ~ 6000/5)) %>% 
+  group_by(Country, Cause, Sex, Year) %>% 
+  summarise(Dx_smt1D=sum(Dx_smt1D), Ex=sum(Ex), mx_std=weighted.mean(mx_smt1D, stdpop)*100000) %>% 
+  ungroup() %>% 
+  mutate(mx_smt1D=Dx_smt1D*100000/Ex) %>% 
+  #calculate 3-year rolling averages
+  group_by(Country, Cause, Sex) %>% 
+  arrange(Year) %>% 
+  mutate(mx_smt1D_roll=roll_mean(mx_smt1D, 3, align="center", fill=NA),
+         mx_std_roll=roll_mean(mx_std, 3, align="center", fill=NA))
+
+#Alternative Figure 1
+agg_png("Outputs/DoDFigS4.png", units="in", width=8, height=5, res=800)
+Combined_3564 %>% filter(Cause=="Total") %>% 
+  ggplot(aes(x=Year, y=mx_std_roll, colour=Country))+
+  geom_line()+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("awtools::mpalette", name="")+
+  facet_wrap(~Sex)+
+  theme_custom()+
+  theme(panel.background=element_rect(fill="Grey95"),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+
+dev.off()
+
+#Alternative Figure 2
+agg_png("Outputs/DoDFigS5.png", units="in", width=8, height=5, res=800)
+Combined_3564 %>% filter(Cause=="DoD") %>% 
+  ggplot(aes(x=Year, y=mx_std_roll, colour=Country))+
+  geom_line()+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("awtools::mpalette", name="")+
+  facet_wrap(~Sex)+
+  theme_custom()+
+  theme(panel.background=element_rect(fill="Grey95"),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+
+dev.off()
+
+#Alternative Figure 2a
+agg_png("Outputs/DoDFigS5a.png", units="in", width=8, height=5, res=800)
+Combined_3564 %>% filter(Cause=="Drugs") %>% 
+  ggplot(aes(x=Year, y=mx_std_roll, colour=Country))+
+  geom_line()+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("awtools::mpalette", name="")+
+  facet_wrap(~Sex)+
+  theme_custom()+
+  theme(panel.background=element_rect(fill="Grey95"),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+
+dev.off()
+
+#Alternative Figure 2b
+agg_png("Outputs/DoDFigS5b.png", units="in", width=8, height=5, res=800)
+Combined_3564 %>% filter(Cause=="Suicide") %>% 
+  ggplot(aes(x=Year, y=mx_std_roll, colour=Country))+
+  geom_line()+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("awtools::mpalette", name="")+
+  facet_wrap(~Sex)+
+  theme_custom()+
+  theme(panel.background=element_rect(fill="Grey95"),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+
+dev.off()
+
+#Alternative Figure 2c
+agg_png("Outputs/DoDFigS5c.png", units="in", width=8, height=5, res=800)
+Combined_3564 %>% filter(Cause=="Alcohol") %>% 
+  ggplot(aes(x=Year, y=mx_std_roll, colour=Country))+
+  geom_line()+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("awtools::mpalette", name="")+
+  facet_wrap(~Sex)+
+  theme_custom()+
+  theme(panel.background=element_rect(fill="Grey95"),
+        axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+
+dev.off()
