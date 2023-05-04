@@ -1,6 +1,6 @@
 rm(list=ls())
 
-#Mortality smooth is currently off CRAN, so take mirrored version from Tim Riffe's GitHub
+#Mortality smooth has an older versio currently on CRAN, so take mirrored version from Tim Riffe's GitHub
 #remotes::install_github("timriffe/MortalitySmooth")
 
 library(curl)
@@ -1025,6 +1025,7 @@ theme_custom <- function() {
 
 options(scipen=10000)
 
+agg_tiff("Outputs/DoDLexisSurface21Male.tiff", units="in", width=7, height=10, res=800)
 ggplot(UKsmoothed %>% filter(Cause %in% c("Alcohol", "Drugs", "Suicide") & Sex==1),
        aes(x=Year, y=Age, fill=mx_smt1D*100000))+
   geom_tile()+
@@ -1032,6 +1033,21 @@ ggplot(UKsmoothed %>% filter(Cause %in% c("Alcohol", "Drugs", "Suicide") & Sex==
   facet_grid(Cause~Country)+
   theme_custom()+
   coord_equal()
+
+dev.off()
+
+agg_tiff("Outputs/DoDLexisSurfaceTest.tiff", units="in", width=4, height=6, res=800)
+ggplot(UKsmoothed %>% filter(Cause == "Alcohol" & Country=="England & Wales" & Sex==1),
+       aes(x=Year, y=Age, fill=mx_smt1D*100000))+
+  geom_tile()+
+  scale_fill_paletteer_c("viridis::inferno", limits=c(0,NA), name="Deaths\nper 100,000")+
+  theme_custom()+
+  coord_equal()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
+  labs(title="Alcohol-specific deaths\nin England & Wales",
+       caption="Data from ONS | Plot by @VictimOfMaths")
+
+dev.off()
 
 ###############################################
 #Fit APC model using code from Acosta & van Raalte paper
@@ -1513,13 +1529,21 @@ db <- curvs %>%
          mx_exc = mx_sth - mx_ap_spl,
          rr = mx_sth / mx_ap_spl) 
 
+agg_tiff("Outputs/APCCurvatureExcess.tiff", units="in", width=5, height=8, res=800)
 ggplot(db %>% filter(Sex==1), aes(x=Year, y=Age, fill=mx_exc))+
   geom_tile()+
+  scale_x_continuous(name="", limits=c(2000, 2024), 
+                     breaks=c(2000, 2005, 2010, 2015, 2020))+
+  scale_y_continuous(breaks=c(20, 30, 40, 50, 60, 70))+
   scale_fill_paletteer_c("scico::roma", direction=-1,
-                         limits=c(-max(abs(db$mx_exc)), max(abs(db$mx_exc))))+
+                         limits=c(-max(abs(db$mx_exc)), max(abs(db$mx_exc))),
+                         name="Excess mortality\nPer 100,000")+
   facet_grid(Country~Cause)+
   theme_custom()+
-  coord_equal()
+  coord_equal()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+dev.off()
+
 
 APCcurvs <- db %>% 
   filter(Age<=75) %>% 
@@ -1531,7 +1555,7 @@ APCcurvs <- db %>%
 ann_text <- data.frame(Age=seq(19, 74, by=5), Year=rep(2022.5, times=12), 
                        label=as.character(seq(2005, 1950, by=-5)))
 
-agg_tiff("Outputs/APCCurvatureTest1.tiff", units="in", width=6, height=10, res=800)
+agg_tiff("Outputs/APCCurvatureTest1.tiff", units="in", width=7, height=10, res=700)
 ggplot(APCcurvs, aes(x=Year, y=Age))+
   geom_point(aes(fill=Cause, size=rr), shape=21, colour="black", alpha=0.7)+
   scale_x_continuous(name="", limits=c(2000, 2024), 
@@ -1552,7 +1576,10 @@ ggplot(APCcurvs, aes(x=Year, y=Age))+
   facet_grid(Sex~Country)+
   coord_equal()+
   theme_custom()+
-  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1))+
+  labs(title="APC Curvature plot of alcohol, suicide and drug deaths",
+       subtitle="Modal age of greatest excess mortality vs. a counterfatual assuming no cohort trends",
+       caption="Data from ONS and NRS | Plot concept by Kike Acosta & Alyson van Raalte | Created by @VictimOfMaths")
   
 dev.off()
 
