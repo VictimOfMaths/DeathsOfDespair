@@ -43,7 +43,7 @@ sexdata <- read_excel(rawdata, sheet="Table_1", range="A5:M49") %>%
             "ASMR_Male", "ASMR_Male.Lower", "ASMR_Male.Upper") %>% 
   pivot_longer(cols=c(2:13), names_to=c("Metric", "Sex"), names_sep="_", values_to="Value")
 
-png("Outputs/ASDScotland2022xSex.png", units="in", width=8, height=6, res=800)
+agg_png("Outputs/ASDScotland2022xSex.png", units="in", width=8, height=6, res=800)
 sexdata %>% 
   filter(Metric=="Deaths") %>% 
   ggplot(aes(x=Year, y=Value, colour=Sex, linetype=Sex))+
@@ -64,7 +64,7 @@ sexdata %>%
        caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
 dev.off()
 
-png("Outputs/ASDScotland2022xSexASMR.png", units="in", width=8, height=6, res=800)
+agg_png("Outputs/ASDScotland2022xSexASMR.png", units="in", width=8, height=6, res=800)
 sexdata %>% 
   filter(Metric=="ASMR" & !is.na(Value)) %>% 
   mutate(Type=case_when(
@@ -143,7 +143,7 @@ ASDfull <- ggdraw()+
   draw_label("2022", x=0.27, y=0.8, size=10, colour="Tomato")+
   draw_label("Key", x=0.17, y=0.85, size=11, fontface="bold")
 
-png("Outputs/ASDScotland2022xAge.png", units="in", width=12, height=6, res=600)
+agg_png("Outputs/ASDScotland2022xAge.png", units="in", width=12, height=6, res=600)
 ggdraw(ASDfull)
 dev.off()
 
@@ -153,21 +153,137 @@ IMDdata <- read_excel(rawdata, sheet="Table_5", range="A5:G335") %>%
          "Lower"="Lower Confidence Interval Limit",
          "Upper"="Upper Confidence Interval Limit") 
 
+agg_png("Outputs/ASDScotland2022xSIMD.png", units="in", width=9, height=6, res=800)
 IMDdata %>% 
-  filter(Sex!="Persons") %>% 
+  filter(Sex=="Persons") %>% 
   ggplot(aes(x=Year, y=ASMR))+
   geom_ribbon(aes(ymin=Lower, ymax=Upper, fill=as.factor(`SIMD quintile`)), alpha=0.4)+
   geom_line(aes(colour=as.factor(`SIMD quintile`)))+
   scale_x_continuous(name="")+
   scale_y_continuous(name="Annual deaths per 100,000", limits=c(0,NA))+
-  scale_colour_manual(values=c("#fcc5c0", "#fa9fb5", "#f768a1", "#c51b8a", "#7a0177"),
+  scale_colour_manual(values=c("#7a0177", "#c51b8a", "#f768a1", "#fa9fb5","#fcc5c0"),
                       name="SIMD quintile", labels=c("Most deprived", "", "", "", "Least deprived"))+
-  scale_fill_manual(values=c("#fcc5c0", "#fa9fb5", "#f768a1", "#c51b8a", "#7a0177"),
+  scale_fill_manual(values=c("#7a0177", "#c51b8a", "#f768a1", "#fa9fb5","#fcc5c0"),
                       name="SIMD quintile", labels=c("Most deprived", "", "", "", "Least deprived"))+
-  #scale_colour_paletteer_d("NineteenEightyR::miami2", direction=-1,
-  #                         name="SIMD quintile", labels=c("Most deprived", "", "", "", "Least deprived"))+
-  #scale_fill_paletteer_d("NineteenEightyR::miami2", direction=-1,
-  #                       name="SIMD quintile", labels=c("Most deprived", "", "", "", "Least deprived"))+
   theme_custom()+
   theme(panel.grid.major.y=element_line(colour="grey90"))+
-  facet_wrap(~Sex)
+  labs(title="Alcohol-specific deaths have risen in all but the most deprived group",
+       subtitle="Age-standardised rates of deaths from causes that are wholly-attributable to alcohol in Scotland",
+       caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
+dev.off()
+
+#Bring in drug-related deaths
+temp <- tempfile()
+source <- "https://www.nrscotland.gov.uk/files//statistics/drug-related-deaths/22/drug-related-deaths-22-data.xlsx"
+rawdrd <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
+
+sexdrd <- read_excel(rawdrd, sheet="1 - summary", range="A4:I31") %>% 
+  select(c(1,2,7:9)) %>% 
+  set_names("Year", "Deaths", "ASMR", "ASMR_Lower", "ASMR_Upper") %>% 
+  mutate(Sex="Total") %>% 
+  bind_rows(read_excel(rawdrd, sheet="1 - summary", range="A34:I57") %>% 
+              select(c(1,2,7:9)) %>% 
+              set_names("Year", "Deaths", "ASMR", "ASMR_Lower", "ASMR_Upper") %>% 
+              mutate(Sex="Female"))%>% 
+  bind_rows(read_excel(rawdrd, sheet="1 - summary", range="A60:I83") %>% 
+              select(c(1,2,7:9)) %>% 
+              set_names("Year", "Deaths", "ASMR", "ASMR_Lower", "ASMR_Upper") %>% 
+              mutate(Sex="Male"))
+
+sexcompare <- sexdata %>% filter(Metric=="ASMR" & !is.na(Value)) %>% 
+  mutate(Type=case_when(
+    endsWith(Sex, "Upper") ~ "Upper",
+    endsWith(Sex, "Lower") ~ "Lower",
+    TRUE ~ "Central"),
+    Sex=case_when(
+      startsWith(Sex, "Male") ~ "Male",
+      startsWith(Sex, "Female") ~ "Female",
+      TRUE ~ "Total")) %>% 
+  filter(Type=="Central") %>% 
+  mutate(Substance="Alcohol") %>% 
+  bind_rows(sexdrd %>% 
+  select(c(Year, ASMR, Sex)) %>% 
+  rename("Value"="ASMR") %>% 
+    mutate(Substance="Drugs"))
+
+agg_png("Outputs/ASDDRDScotland2022.png", units="in", width=9, height=6, res=800)
+sexcompare %>% filter(Year>=2000 & Sex=="Total") %>% 
+  ggplot(aes(x=Year, y=Value, colour=Substance))+
+  geom_line()+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Annual deaths per 100,000", limits=c(0,NA))+
+  scale_colour_manual(values=c("skyblue2", "tomato2"))+
+  theme_custom()+
+  theme(panel.grid.major.y = element_line(colour="grey90"), plot.title=element_markdown())+
+  labs(title="<span style='color:skyblue2;'>Alcohol-specific deaths</span> overtook <span style='color:tomato2;'>drug misuse deaths</span> in Scotland in 2022",
+       subtitle="Drug misuse deaths and deaths from conditions that are wholly caused by alcohol in Scotland",
+       caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
+dev.off()
+
+ggplot(sexcompare %>% filter(Year>=2000 & Sex!="Total"), aes(x=Year, y=Value, group=Substance))+
+  geom_area(aes(fill=Substance), alpha=0.4, position="identity")+
+  geom_line(aes(colour=Substance))+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Annual deaths per 100,000")+
+  scale_colour_manual(values=c("skyblue4", "tomato4"))+
+  scale_fill_manual(values=c("skyblue", "tomato"))+
+  facet_wrap(~Sex)+
+  theme_custom()+
+  theme(panel.grid.major.y = element_line(colour="grey90"))
+
+agedrd <- read_excel(rawdrd, sheet="5 - sex and age (rates)", range="A4:V27") %>% 
+  select(-2) %>% 
+  gather(Age, DeathRate, c(2:21)) %>% 
+  mutate(Age=case_when(
+    Age=="35 - 39" ~ "35-39",
+    Age=="45 - 49" ~ "45-49",
+    TRUE ~ Age)) %>% 
+  rename("Year"="year1,2") %>% 
+  mutate(Substance="Drugs") %>% 
+  bind_rows(agedata %>% 
+              filter(Sex=="Persons" & Year>=2000) %>% 
+              select(Year, Age, ASDrate) %>% 
+              rename("DeathRate"="ASDrate") %>% 
+              mutate(Substance="Alcohol")) %>% 
+  mutate(Age=factor(Age, levels=c("0", "1-4", "5-9", "10-14", "15-19", "20-24", "25-29", "30-34", "35-39",
+                                  "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79",
+                                  "80-84", "85-89", "90+")))
+
+ASDDRDplot <- ggplot(agedrd %>% filter(!Age %in% c("0", "1-4", "5-9", "10-14")), aes(x=Year, y=DeathRate))+
+  geom_area(aes(fill=Substance), alpha=0.3, position="identity")+
+  geom_line(aes(colour=Substance), arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
+  geom_hline(yintercept=0, colour="grey30")+
+  scale_x_continuous(name="Age")+
+  scale_y_continuous(name="Annual deaths per 100,000")+
+  scale_colour_manual(values=c("#0c2c84", "#990000"))+
+  scale_fill_manual(values=c("skyblue", "tomato"))+
+  facet_grid(~Age, switch="x")+
+  theme_custom()+
+  theme(axis.line.x=element_blank(), axis.ticks.x=element_blank(), axis.text.x=element_blank(),
+        plot.title=element_markdown())+
+  labs(title="<span style='color:#990000;'>Drug misuse deaths</span> are high, but falling, in younger age groups<br>
+       <span style='color:#0c2c84;'>Alcohol-specific deaths</span> are high, but rising, in older ages.",
+       subtitle="Deaths in Scotland from drug misuse and causes wholly attibutable to alcohol",
+       caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
+
+ASDDRDinset <- ggplot()+
+  geom_polygon(aes(x=c(1, 1:21, 21), 
+                   y=c(0,21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10,14,0)), 
+               fill="Grey70")+
+  geom_line(aes(x=c(1:21), 
+                y=c(21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10,14)), 
+            arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")), colour="Black")+
+  theme_classic()+
+  theme(axis.line=element_blank(), axis.text=element_blank(),axis.ticks=element_blank(),
+        axis.title=element_blank())
+
+ASDDRDfull <- ggdraw()+
+  draw_plot(ASDDRDplot)+
+  draw_plot(ASDDRDinset, x=0.1, y=0.65, width=0.13, height=0.2)+
+  draw_label("2001", x=0.12, y=0.66, size=10, colour="Black")+
+  draw_label("2021", x=0.22, y=0.66, size=10, colour="Black")+
+  draw_label("Key", x=0.12, y=0.85, size=11, fontface="bold")
+
+agg_png("Outputs/ASDDRDScotland2022xAge.png", units="in", width=12, height=6, res=800)
+ggdraw(ASDDRDfull)
+dev.off()
