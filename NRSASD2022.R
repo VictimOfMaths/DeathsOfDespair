@@ -220,16 +220,21 @@ sexcompare %>% filter(Year>=2000 & Sex=="Total") %>%
        caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
 dev.off()
 
+agg_png("Outputs/ASDDRDScotland2022xSex.png", units="in", width=9, height=6, res=800)
 ggplot(sexcompare %>% filter(Year>=2000 & Sex!="Total"), aes(x=Year, y=Value, group=Substance))+
   geom_area(aes(fill=Substance), alpha=0.4, position="identity")+
-  geom_line(aes(colour=Substance))+
+  geom_line(aes(colour=Substance), arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")))+
   scale_x_continuous(name="")+
   scale_y_continuous(name="Annual deaths per 100,000")+
   scale_colour_manual(values=c("skyblue4", "tomato4"))+
   scale_fill_manual(values=c("skyblue", "tomato"))+
   facet_wrap(~Sex)+
   theme_custom()+
-  theme(panel.grid.major.y = element_line(colour="grey90"))
+  theme(panel.grid.major.y = element_line(colour="grey90"))+
+  labs(title="Trends in alcohol-specific and drug misuse deaths in Scotland are looking worse for women",
+       subtitle="Age-standardised mortality rates for drug misuse deaths and deaths from conditions wholly attributable to alcohol.",
+       caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
+dev.off()
 
 agedrd <- read_excel(rawdrd, sheet="5 - sex and age (rates)", range="A4:V27") %>% 
   select(-2) %>% 
@@ -267,11 +272,11 @@ ASDDRDplot <- ggplot(agedrd %>% filter(!Age %in% c("0", "1-4", "5-9", "10-14")),
        caption="Data from National Records of Scotland | Plot by @VictimOfMaths")
 
 ASDDRDinset <- ggplot()+
-  geom_polygon(aes(x=c(1, 1:21, 21), 
-                   y=c(0,21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10,14,0)), 
+  geom_polygon(aes(x=c(1, 1:22, 22), 
+                   y=c(0,21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10,14,12,0)), 
                fill="Grey70")+
-  geom_line(aes(x=c(1:21), 
-                y=c(21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10,14)), 
+  geom_line(aes(x=c(1:22), 
+                y=c(21,20,18,15,17,21,18,20,16,17,14,12,15,10,13,9,3,5,4,10,14,12)), 
             arrow=arrow(angle=25, type="closed", length=unit(0.2, "cm")), colour="Black")+
   theme_classic()+
   theme(axis.line=element_blank(), axis.text=element_blank(),axis.ticks=element_blank(),
@@ -281,8 +286,13 @@ ASDDRDfull <- ggdraw()+
   draw_plot(ASDDRDplot)+
   draw_plot(ASDDRDinset, x=0.1, y=0.65, width=0.13, height=0.2)+
   draw_label("2001", x=0.12, y=0.66, size=10, colour="Black")+
-  draw_label("2021", x=0.22, y=0.66, size=10, colour="Black")+
+  draw_label("2022", x=0.22, y=0.66, size=10, colour="Black")+
   draw_label("Key", x=0.12, y=0.85, size=11, fontface="bold")
+
+agg_png("Outputs/ASDDRDScotland2022xAge.png", units="in", width=12, height=6, res=800)
+ggdraw(ASDDRDfull)
+dev.off()
+
 
 agg_png("Outputs/ASDDRDScotland2022xAge.png", units="in", width=12, height=6, res=800)
 ggdraw(ASDDRDfull)
