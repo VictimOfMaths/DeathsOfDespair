@@ -16,6 +16,7 @@ library(scales)
 library(ggtext)
 library(gt)
 library(MortalitySmooth)
+library(RcppRoll)
 
 #Set common font for all plots
 font <- "Lato"
@@ -502,6 +503,33 @@ rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "scotdata.wide"
 #Northern Ireland#
 ##################
 #Get NI data
+nifile.2022 <- tempfile()
+niurl.2022 <- "https://www.nisra.gov.uk/system/files/statistics/Section%206%20-%20Cause_Death_Tables_2022_revised_final.xlsx"
+nifile.2022 <- curl_download(url=niurl.2022, destfile=nifile.2022, quiet=FALSE, mode="wb")
+
+nidata.2022 <- read_excel(nifile.2022, sheet="Table 6.4", range=c("A7:V2010"), col_names=FALSE) %>% 
+  mutate(Year=2022,
+         #Formatting of various conditions is wonky and unhelpful
+         `...1`=gsub("\\(G60) ", "\\(G60):", `...1`)) %>% 
+  separate(`...1`, into=c("Condition", "Sex"), sep=":")%>% 
+  mutate(Condition=gsub("\\(chickenpox", "chickenpox", Condition)) %>% 
+  mutate(Condition=gsub("\\(HIV", "HIV", Condition)) %>% 
+  mutate(Condition=gsub("\\(nodular", "nodular", Condition)) %>% 
+  mutate(Condition=gsub("\\(primary", "primary", Condition)) %>% 
+  mutate(Condition=gsub("\\(hyperthyroidism", "hyperthyroidism", Condition)) %>% 
+  mutate(Condition=gsub("\\(affective", "affective", Condition)) %>% 
+  mutate(Condition=gsub("\\(suicide", "suicide", Condition)) %>% 
+  mutate(Condition=gsub("I06", "\\(I06", Condition)) %>% 
+  mutate(Condition=gsub(" K20", "\\(K20)", Condition)) %>% 
+  mutate(Condition=gsub("M00-M25", "\\(M00-M25", Condition),
+         Sex=str_trim(Sex, side="left")) %>% 
+  separate(Condition, c("Cause", "ICD10"), sep="\\(") %>% 
+  mutate(ICD10=gsub("\\)", "", ICD10))
+
+niallcause.2022 <- nidata.2022 %>% slice_head(n=2) 
+
+nidata.2022 <- nidata.2022 %>% slice(3:nrow(.))
+
 nifile.2021 <- tempfile()
 niurl.2021 <- "https://www.nisra.gov.uk/system/files/statistics/Section%206%20-%20Cause_Death_Tables_2021_Final.xlsx"
 nifile.2021 <- curl_download(url=niurl.2021, destfile=nifile.2021, quiet=FALSE, mode="wb")
@@ -820,7 +848,7 @@ nidata <- bind_rows(nidata.2001, nidata.2002, nidata.2003, nidata.2004, nidata.2
                 Age=="...21" ~ "75-79", Age=="...22" ~ "80-84", Age=="...23" ~ "85-89", Age=="...24" ~ "90+"),
                 Dx=as.numeric(Dx), Dx=if_else(is.na(Dx), 0, Dx)) %>% 
               set_names(c("ICD10", "Cause", "Sex", "Year", "Age", "Dx"))) %>% 
-  bind_rows(bind_rows(nidata.2020, nidata.2021) %>% gather(Age, Dx, c(5:24)) %>% 
+  bind_rows(bind_rows(nidata.2020, nidata.2021, nidata.2022) %>% gather(Age, Dx, c(5:24)) %>% 
               select(-`...4`) %>% 
               mutate(Age=case_when(
                 Age=="...5" ~ "0", Age=="...6" ~ "1-4", Age=="...7" ~ "5-9", Age=="...8" ~ "10-14",
@@ -883,7 +911,7 @@ niallcause <- bind_rows(niallcause.2001, niallcause.2002, niallcause.2003, niall
                 Dx=as.numeric(Dx), Dx=if_else(is.na(Dx), 0, Dx),
                 Cause="Total") %>% 
               set_names(c("Sex", "Year", "Age", "Dx", "Cause"))) %>% 
-  bind_rows(bind_rows(niallcause.2020, niallcause.2021) %>% select(-c(ICD10, Cause, `...4`)) %>% 
+  bind_rows(bind_rows(niallcause.2020, niallcause.2021, niallcause.2022) %>% select(-c(ICD10, Cause, `...4`)) %>% 
               gather(Age, Dx, c(2:21)) %>% 
               mutate(Age=case_when(
                 Age=="...5" ~ "0", Age=="...6" ~ "1-4", Age=="...7" ~ "5-9", Age=="...8" ~ "10-14",
@@ -922,6 +950,10 @@ nipop <- bind_rows(nipop %>% filter(Year==2020) %>%
                      select("Year", "Age", "Male2", "Female2") %>% 
                      mutate(Year=2021) %>% 
                      set_names(c("Year", "Age", "Male", "Female")),
+                   nipop %>% filter(Year==2020) %>% 
+                     select("Year", "Age", "Male2", "Female2") %>% 
+                     mutate(Year=2022) %>% 
+                     set_names(c("Year", "Age", "Male", "Female")),
                    nipop %>% select("Year", "Age", "Male1", "Female1") %>% 
                      set_names(c("Year", "Age", "Male", "Female"))) %>%  
   gather(Sex, Ex, c("Male", "Female")) %>% 
@@ -936,7 +968,7 @@ nipop.grouped <- nipop %>%
     Age<55 ~ 50, Age<60 ~ 55, Age<65 ~ 60, Age<70 ~ 65, Age<75 ~ 70, Age<80 ~ 75,
     Age<85 ~ 80, TRUE ~ 85)) %>% 
   group_by(Sex, agestart) %>%
-  summarise(across(`2001`:`2021`, sum, na.rm=TRUE)) %>% 
+  summarise(across(`2001`:`2022`, sum, na.rm=TRUE)) %>% 
   ungroup()
 
 rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "scotdata.wide", "scotpop", 
@@ -957,10 +989,10 @@ UKdata <- ewdata.wide %>%
               merge(scotpop.grouped %>% gather(Year, pop, c(3:24))) %>% 
               mutate(mx=Dx*100000/pop)) %>% 
   bind_rows(nidata.wide %>% 
-              gather(Year, Dx, c(5:25)) %>% 
+              gather(Year, Dx, c(5:26)) %>% 
               select(Cause, agestart, Sex, Year, Dx) %>% 
               mutate(Country="Northern Ireland") %>%
-              merge(nipop.grouped %>% gather(Year, pop, c(3:23))) %>% 
+              merge(nipop.grouped %>% gather(Year, pop, c(3:24))) %>% 
               mutate(mx=Dx*100000/pop)) %>% 
   rename(Ex=pop)
 
@@ -1155,8 +1187,8 @@ Raw <- USdata %>%
 #Apply smoothing based approach suggested by Tim Riffe
 #Prediction models fall over if you include <10 year olds, so exclude them as not relevant to analysis
 
-ShortCountries <- c("England & Wales", "Northern Ireland")
-LongCountries <- c("USA", "Scotland", "Canada")
+ShortCountries <- c("England & Wales")
+LongCountries <- c("USA", "Scotland", "Canada", "Northern Ireland")
 
 #First do countries with data only up to 2021
 x <- seq(10,85, by=5)
@@ -1254,11 +1286,10 @@ for(i in LongCountries){
   }
 }
 
-
 Rawsmoothed <- bind_rows(mx_smoothed1D1, mx_smoothed1D2) %>% 
   merge(scotpop %>% gather(Year, pop.s, c(3:24)) %>% 
            merge(ewpop %>% gather(Year, pop.ew, c(3:23)), all.x=TRUE) %>% 
-           merge(nipop %>% gather(Year, pop.ni, c(3:23)), all.x=TRUE) %>%
+           merge(nipop %>% gather(Year, pop.ni, c(3:24)), all.x=TRUE) %>%
            mutate(Sex=if_else(Sex==1, "Male", "Female")) %>% 
            merge(USpop %>% rename(pop.us=Ex)) %>% 
           merge(Canpop %>% gather(Year, pop.can, c(3:25)) %>%
@@ -1301,7 +1332,10 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>%
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="")+
   facet_grid(Sex~Country)+
   theme_custom()+
-  theme(legend.position="top")
+  theme(legend.position="top")+
+  labs(title="Trends in deaths due to alcohol, drugs and suicide in the UK, USA and Canada", 
+       subtitle="Grey shaded areas represent the pandemic period",
+       caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
 dev.off()
 
 agg_tiff("Outputs/DoDPandemicPaperFig1AltUpdated.tiff", units="in", width=10, height=6, res=600)
@@ -1318,10 +1352,13 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000), aes(x=Ye
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="")+
   facet_grid(Sex~Country)+
   theme_custom()+
-  theme(legend.position="top")
+  theme(legend.position="top")+
+  labs(title="Trends in deaths due to alcohol, drugs and suicide in the UK, USA and Canada", 
+       subtitle="Bolder line segments represent the pandemic period",
+       caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
 dev.off()
 
-agg_tiff("Outputs/DoDPandemicPaperFig1Altv2Updated.tiff", units="in", width=10, height=6, res=600)
+agg_tiff("Outputs/DoDPandemicPaperFig1Altv2Updated.tiff", units="in", width=10, height=7.5, res=600)
 ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>% 
          mutate(Sex=factor(Sex, levels=c("Male", "Female"))), aes(x=Year, y=mx_std, colour=Country))+
   geom_rect(aes(xmin=2019.5, xmax=2022.5, ymin=0, ymax=56), fill="Grey92", colour=NA)+
@@ -1332,7 +1369,10 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>%
   scale_colour_manual(values=c("#017a4a", "#FFCE4E", "#3d98d3", "#ff363c", "#7559a2"), name="")+
   facet_grid(Sex~Cause)+
   theme_custom()+
-  theme(legend.position="top")
+  theme(legend.position="top")+
+  labs(title="Trends in deaths due to alcohol, drugs and suicide in the UK, USA and Canada", 
+       subtitle="Grey shaded areas represent the pandemic period",
+       caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
 dev.off()
 
 #Lexis surfaces
@@ -1415,3 +1455,84 @@ ggplot(Cohorts %>% filter(Sex=="Female" & Cause!="Total" & !is.na(Cohort)),
   labs(title="Cohort patterns in female mortality",
        caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
 dev.off()
+
+####################
+#Actually replicate analysis from Jenn's BMJ Open paper
+Combined_short <- Rawsmoothed %>% 
+  filter(Year>2000) %>% 
+  mutate(ageband=case_when(
+    Age<35 ~ "<35",
+    Age<45 ~ "35-44",
+    Age<55 ~ "45-54",
+    Age<65 ~ "55-64",
+    TRUE ~ "65+"),
+    stdpop=case_when(
+      Age<15 ~ 5500/5, Age<20 ~ 5500/5, Age<25 ~ 6000/5, Age<30 ~ 6000/5, Age<35 ~ 6500/5,
+      Age<40 ~ 7000/5, Age<45 ~ 7000/5, Age<50 ~ 7000/5, Age<55 ~ 7000/5, Age<60 ~ 6500/5,
+      Age<65 ~ 6000/5, Age<70 ~ 5500/5, Age<75 ~ 5000/5, Age<80 ~ 4000/5, Age<85 ~ 2500/5,
+      Age<90 ~ 1500/5, TRUE ~ 1000
+    )) %>% 
+  group_by(ageband, Country, Cause, Sex, Year) %>% 
+  summarise(Dx_smt1D=sum(Dx_smt1D), Ex=sum(pop), mx_std=weighted.mean(mx_smt1D, stdpop)*100000) %>% 
+  ungroup() %>% 
+  mutate(mx_smt1D=Dx_smt1D*100000/Ex) %>% 
+  #calculate 3-year rolling averages
+  group_by(ageband, Country, Cause, Sex) %>% 
+  arrange(Year) %>% 
+  mutate(mx_smt1D_roll=roll_mean(mx_smt1D, 3, align="center", fill=NA),
+         mx_std_roll=roll_mean(mx_std, 3, align="center", fill=NA))
+
+agg_tiff("Outputs/DoDAlcoholxAge2022.tiff", units="in", width=8, height=6, res=800)
+Combined_short %>% 
+  filter(Cause=="Alcohol" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
+  ggplot()+
+  geom_hline(yintercept=0, colour="grey20")+
+  geom_rect(aes(xmin=2019.5, xmax=2022.5, ymin=0, ymax=118), fill="Grey92", colour=NA)+
+  geom_line(aes(x=Year, y=mx_std, colour=Country))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("awtools::mpalette", name="")+
+  facet_grid(Sex~ageband)+
+  theme_custom()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+        panel.grid.major.y=element_line(colour="grey95"),
+        axis.line.x=element_blank())+
+  labs(title="Alcohol-specific deaths",
+       caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
+dev.off()
+
+agg_tiff("Outputs/DoDDrugsxAge2022.tiff", units="in", width=8, height=6, res=800)
+Combined_short %>% 
+  filter(Cause=="Drugs" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
+  ggplot()+
+  geom_hline(yintercept=0, colour="grey20")+
+  geom_rect(aes(xmin=2019.5, xmax=2022.5, ymin=0, ymax=110), fill="Grey92", colour=NA)+
+  geom_line(aes(x=Year, y=mx_std, colour=Country))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("awtools::mpalette", name="")+
+  facet_grid(Sex~ageband)+
+  theme_custom()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+        panel.grid.major.y=element_line(colour="grey95"),
+        axis.line.x=element_blank())+
+  labs(title="Drug-related deaths",
+       caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
+dev.off()
+
+agg_tiff("Outputs/DoDSuicidexAge2022.tiff", units="in", width=8, height=6, res=800)
+Combined_short %>% 
+  filter(Cause=="Suicide" & ageband %in% c("35-44", "45-54", "55-64")) %>% 
+  ggplot()+
+  geom_hline(yintercept=0, colour="grey20")+
+  geom_rect(aes(xmin=2019.5, xmax=2022.5, ymin=0, ymax=40), fill="Grey92", colour=NA)+
+  geom_line(aes(x=Year, y=mx_std, colour=Country))+
+  scale_y_continuous(name="Deaths per 100,000\n(Age-standardised)", limits=c(0,NA))+
+  scale_colour_paletteer_d("awtools::mpalette", name="")+
+  facet_grid(Sex~ageband)+
+  theme_custom()+
+  theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+        panel.grid.major.y=element_line(colour="grey95"),
+        axis.line.x=element_blank())+
+  labs(title="Deaths by suicide",
+       caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
+dev.off()
+
