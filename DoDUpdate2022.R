@@ -1048,11 +1048,103 @@ USpop <- bind_rows(USpop, USpop %>% filter(Year==2021) %>%
 USdata <- merge(USdata, USpop.grouped) %>% 
   mutate(mx=Dx*100000/Ex, Country="USA")
 
+###############
+#Canadian data#
+###############
+
+#Read in Canadian data
+#Cancer data from https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1310014201
+#(not using cancer data any more, but this file has the all cause data in it)
+Can.can <- read.csv("Data/StatCan Data/StatCanCancer0022.csv")
+
+#Mental and behavioural data from https://www150.statcan.gc.ca/t1/tbl1/en/cv.action?pid=1310014301
+Can.men <- read.csv("Data/StatCan Data/StatCanICDF0022.csv")
+
+#Liver disease from https://www150.statcan.gc.ca/t1/tbl1/en/cv.action?pid=1310014801
+Can.dig <- read.csv("Data/StatCan Data/StatCanICDK0022.csv")
+
+#External cause data from https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1310015601
+Can.ext <- read.csv("Data/StatCan Data/StatCanExternal0022.csv")
+
+#Combine and separate out into causes of interest
+Candata <- bind_rows(Can.can, Can.men, Can.dig, Can.ext) %>% 
+  select(`REF_DATE`, `Age.group`, Sex, Cause.of.death..ICD.10., VALUE) %>% 
+  set_names(c("Year", "Age", "Sex", "CoD", "Dx")) %>% 
+  filter(Age!="Age, not stated") %>% 
+  #Extract the actual ICD-10 codes from the causes of death 
+  #(using a regex I don't understand) plus some faffery to handly the "[hallucinogens]"
+  #that appear in some of the cause of death descriptions
+  mutate(ICD10v1=str_match(CoD, "(?<=\\[).+?(?=\\])"),
+         ICD10v2=str_match(CoD, "(?<=\\[X).+?(?=\\])"),
+         ICD10v3=str_match(CoD, "(?<=\\[Y).+?(?=\\])"),
+         ICD10=case_when(
+           ICD10v1=="hallucinogens" & !is.na(ICD10v2) ~
+             paste0("X", ICD10v2),
+           ICD10v1=="hallucinogens" & !is.na(ICD10v3) ~
+             paste0("Y", ICD10v3),
+           TRUE ~ ICD10v1),
+         #Group
+         Cause=case_when(
+           ICD10=="A00-Y89" ~ "Total",
+           ICD10 %in% c("K70", "K73", "K74", "F10", "X45", "Y15") ~ "Alcohol",
+           ICD10 %in% c("F11", "F12", "F13", "F14", "F17", "F18",
+                        "F19", "X40", "X41", "X42", "X43", "X44",
+                        "X85", "Y10", "Y11", "Y12", "Y13", "Y14") ~ "Drugs",
+           ICD10 %in% c("X60-X84", "Y87") ~ "Suicide")) %>% 
+  group_by(Year, Age, Sex, Cause) %>% 
+  summarise(Dx=sum(Dx)) %>% 
+  ungroup() %>% 
+  mutate(agestart=case_when(
+    Age=="Under 1 year" ~ 0, Age=="1 to 4 years" ~ 1, Age=="5 to 9 years" ~ 5, 
+    Age=="10 to 14 years" ~ 10, Age=="15 to 19 years" ~ 15, Age=="20 to 24 years" ~ 20, 
+    Age=="25 to 29 years" ~ 25, Age=="30 to 34 years" ~ 30, Age=="35 to 39 years" ~ 35, 
+    Age=="40 to 44 years" ~ 40, Age=="45 to 49 years" ~ 45, Age=="50 to 54 years" ~ 50, 
+    Age=="55 to 59 years" ~ 55, Age=="60 to 64 years" ~ 60, Age=="65 to 69 years" ~ 65, 
+    Age=="70 to 74 years" ~ 70, Age=="75 to 79 years"~ 75, Age=="80 to 84 years" ~ 80, 
+    TRUE ~ 85),
+    Sex=if_else(Sex=="Males", 1, 2),
+    Country="Canada") %>% 
+  group_by(Year, agestart, Sex, Cause, Country) %>% 
+  summarise(Dx=sum(Dx), .groups="drop")
+
+#Bring in exposures/populations from HMD 
+
+#Download populations
+Canpop <- readHMDweb(CNTRY="CAN", "Exposures_1x1",  key_list("mortality.org")[1,2], 
+                     key_get("mortality.org", key_list("mortality.org")[1,2])) %>% 
+  filter(Year>=2000) %>% 
+  gather(Sex, Ex, c("Male", "Female")) %>% 
+  select(c("Age", "Sex", "Year", "Ex")) %>% 
+  spread(Year, Ex) %>% 
+  mutate(Sex=if_else(Sex=="Male", 1, 2),
+         #Hackily assumpe populations in 2021 & 22 = 2020
+         `2021`=`2020`, `2022`=`2021`)
+
+#Group populations to match deaths age groups
+Canpop.grouped <- Canpop %>% 
+  mutate(agestart=case_when(
+    Age==0 ~ 0, Age<5 ~ 1, Age<10 ~ 5, Age<15 ~ 10, Age<20 ~ 15, Age<25 ~ 20, 
+    Age<30 ~ 25, Age<35 ~ 30, Age<40 ~ 35, Age<45 ~ 40, Age<50 ~ 45,
+    Age<55 ~ 50, Age<60 ~ 55, Age<65 ~ 60, Age<70 ~ 65, Age<75 ~ 70, Age<80 ~ 75,
+    Age<85 ~ 80, TRUE ~ 85)) %>% 
+  group_by(Sex, agestart) %>%
+  summarise(across(`2000`:`2022`, sum)) %>% 
+  ungroup() %>% 
+  arrange(agestart)
+
+Candata <- Candata %>% 
+  merge(Canpop.grouped %>% gather(Year, pop, c(3:25))) %>% 
+  mutate(mx=Dx*100000/pop) %>% 
+  rename("Ex"="pop") %>% 
+  filter(!is.na(Cause))
+
 rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "scotdata.wide", "scotpop", 
                         "scotpop.grouped", "nidata.wide", "nipop", "nipop.grouped", "UKdata", 
-                        "USdata", "USpop", "USpop.grouped",  "font", "theme_custom", "ewalcvalidate")))
+                        "USdata", "USpop", "USpop.grouped", "Candata", "Canpop", "Canpop.grouped",
+                        "font", "theme_custom", "ewalcvalidate")))
 
 Raw <- USdata %>% 
+  bind_rows(Candata %>% mutate(Sex=if_else(Sex==1, "Male", "Female"))) %>% 
   bind_rows(UKdata %>% 
               mutate(Year=as.numeric(Year),
                      Sex=if_else(Sex==1, "Male", "Female")))
@@ -1064,7 +1156,7 @@ Raw <- USdata %>%
 #Prediction models fall over if you include <10 year olds, so exclude them as not relevant to analysis
 
 ShortCountries <- c("England & Wales", "Northern Ireland")
-LongCountries <- c("USA", "Scotland")
+LongCountries <- c("USA", "Scotland", "Canada")
 
 #First do countries with data only up to 2021
 x <- seq(10,85, by=5)
@@ -1168,13 +1260,16 @@ Rawsmoothed <- bind_rows(mx_smoothed1D1, mx_smoothed1D2) %>%
            merge(ewpop %>% gather(Year, pop.ew, c(3:23)), all.x=TRUE) %>% 
            merge(nipop %>% gather(Year, pop.ni, c(3:23)), all.x=TRUE) %>%
            mutate(Sex=if_else(Sex==1, "Male", "Female")) %>% 
-           merge(USpop %>% rename(pop.us=Ex))) %>% 
+           merge(USpop %>% rename(pop.us=Ex)) %>% 
+          merge(Canpop %>% gather(Year, pop.can, c(3:25)) %>%
+                  mutate(Sex=if_else(Sex==1, "Male", "Female")))) %>%
            mutate(pop=case_when(
              Country=="Scotland" ~ pop.s, 
              Country=="England & Wales" ~ pop.ew,
              Country=="USA" ~ pop.us,
+             Country=="Canada" ~ pop.can,
              TRUE ~ pop.ni)) %>% 
-  select(-c(pop.s, pop.ew, pop.ni, pop.us)) %>% 
+  select(-c(pop.s, pop.ew, pop.ni, pop.us, pop.can)) %>% 
   mutate(Dx_smt1D=mx_smt1D*pop)
 
 ############################
@@ -1234,7 +1329,7 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>%
   geom_point()+
   scale_x_continuous(name="")+
   scale_y_continuous(name="Age-standardised deaths per 100,000")+
-  scale_colour_manual(values=c("#FFCE4E", "#3d98d3", "#ff363c", "#7559a2"), name="")+
+  scale_colour_manual(values=c("#017a4a", "#FFCE4E", "#3d98d3", "#ff363c", "#7559a2"), name="")+
   facet_grid(Sex~Cause)+
   theme_custom()+
   theme(legend.position="top")
@@ -1304,7 +1399,7 @@ ggplot(Cohorts %>% filter(Sex=="Male" & Cause!="Total" & !is.na(Cohort)),
   theme_custom()+
   theme(panel.grid.major.y=element_line(colour="grey97"))+
   labs(title="Cohort patterns in male mortality",
-       caption="Data from ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
+       caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
 dev.off()
 
 agg_tiff("Outputs/DoDCohortsFemale.tiff", units="in", width=12, height=8, res=600)
@@ -1318,5 +1413,5 @@ ggplot(Cohorts %>% filter(Sex=="Female" & Cause!="Total" & !is.na(Cohort)),
   theme_custom()+
   theme(panel.grid.major.y=element_line(colour="grey97"))+
   labs(title="Cohort patterns in female mortality",
-       caption="Data from ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
+       caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
 dev.off()
