@@ -71,10 +71,12 @@ data.18 <- read_excel(rawfile, sheet="18", range="A5:E20481")
 data.19 <- read_excel(rawfile, sheet="19", range="A5:E20305")
 data.20 <- read_excel(rawfile, sheet="20", range="A5:E19032")
 data.21 <- read_excel(rawfile, sheet="21", range="A5:E19157")
+data.22 <- read_excel(rawfile, sheet="22", range="A5:E19483")
 
 ewdata <- bind_rows(data.01, data.02, data.03, data.04, data.05, data.06, data.07,
                     data.08, data.09, data.10, data.11, data.12, data.13, data.14, 
-                    data.15, data.16, data.17, data.18, data.19, data.20, data.21) %>% 
+                    data.15, data.16, data.17, data.18, data.19, data.20, data.21,
+                    data.22) %>% 
   set_names("ICD10", "Year", "Sex", "Age", "Deaths") %>% 
   #Allocate causes to code groups
   mutate(code1=substr(ICD10, 1, 1), code2=as.numeric(substr(ICD10,2,3)), 
@@ -101,7 +103,8 @@ ewdata <- bind_rows(data.01, data.02, data.03, data.04, data.05, data.06, data.0
 #Pull out alcohol data specifically for validation at detailed ICD-10 code level
 ewalcvalidate <- bind_rows(data.01, data.02, data.03, data.04, data.05, data.06, data.07,
                            data.08, data.09, data.10, data.11, data.12, data.13, data.14, 
-                           data.15, data.16, data.17, data.18, data.19, data.20, data.21) %>% 
+                           data.15, data.16, data.17, data.18, data.19, data.20, data.21,
+                           data.22) %>% 
   set_names("ICD10", "Year", "Sex", "Age", "Deaths") %>% 
   #Allocate causes to code groups
   mutate(code1=substr(ICD10, 1, 1), code2=as.numeric(substr(ICD10,2,3)), 
@@ -130,7 +133,7 @@ ewdata.wide <- ewdata %>%
 #Add all-cause deaths group
 ewdata.wide <- ewdata.wide %>% 
   group_by(Age, Sex) %>% 
-  summarise(across(c(`2001`:`2021`), sum)) %>% 
+  summarise(across(c(`2001`:`2022`), sum)) %>% 
   ungroup() %>% 
   mutate(Cause="Total") %>% 
   bind_rows(ewdata.wide)%>% 
@@ -155,9 +158,9 @@ ewpop <- readHMDweb(CNTRY="GBRTENW", "Population", key_list("mortality.org")[1,2
   mutate(Age=as.numeric(Age), Age=if_else(is.na(Age), 110, Age)) %>% 
   filter(Year>=2001) 
 
-ewpop <- bind_rows(ewpop %>% filter(Year==2020) %>% 
+ewpop <- bind_rows(ewpop %>% filter(Year==2021) %>% 
                      select("Year", "Age", "Male2", "Female2") %>% 
-                     mutate(Year=2021) %>% 
+                     mutate(Year=2022) %>% 
                      set_names(c("Year", "Age", "Male", "Female")),
                    ewpop %>% select(c("Year", "Age", "Male1", "Female1")) %>% 
                      set_names(c("Year", "Age", "Male", "Female"))) %>% 
@@ -173,7 +176,7 @@ ewpop.grouped <- ewpop %>%
     Age<55 ~ 50, Age<60 ~ 55, Age<65 ~ 60, Age<70 ~ 65, Age<75 ~ 70, Age<80 ~ 75,
     Age<85 ~ 80, TRUE ~ 85)) %>% 
   group_by(Sex, agestart) %>%
-  summarise(across(`2001`:`2021`, sum, na.rm=TRUE)) %>% 
+  summarise(across(`2001`:`2022`, \(x) sum(x, na.rm = TRUE))) %>% 
   ungroup()
 
 rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "username", "password", 
@@ -469,20 +472,15 @@ scotpop <- readHMDweb(CNTRY="GBR_SCO", "Population",  key_list("mortality.org")[
   mutate(Age=as.numeric(Age), Age=if_else(is.na(Age), 110, Age)) %>% 
   filter(Year>=2001) 
 
-scotpop <- bind_rows(scotpop %>% filter(Year==2020) %>% 
+scotpop <- bind_rows(scotpop %>% filter(Year==2021) %>% 
                        select("Year", "Age", "Male2", "Female2") %>% 
-                       mutate(Year=2021) %>% 
+                       mutate(Year=2022) %>% 
                        set_names(c("Year", "Age", "Male", "Female")),
                      scotpop %>% select("Year", "Age", "Male1", "Female1") %>% 
                        set_names(c("Year", "Age", "Male", "Female"))) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
   spread(Year, Ex) %>% 
   mutate(Sex=if_else(Sex=="Male", 1, 2))
-
-#stupid hack because we don't have 2022 pop data yet, so just recycle 2021 data. 
-#a clever person would definitely do something less stupid
-scotpop <- merge(scotpop, scotpop %>% select(Age, Sex, `2021`) %>% 
-                       rename(`2022`=`2021`))
 
 #Group populations to match deaths age groups
 scotpop.grouped <- scotpop %>% 
@@ -977,10 +975,10 @@ rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "scotdata.wide"
 
 #Combine EW, Scotland & NI
 UKdata <- ewdata.wide %>% 
-  gather(Year, Dx, c(5:25)) %>% 
+  gather(Year, Dx, c(5:26)) %>% 
   select(Cause, agestart, Sex, Year, Dx) %>% 
   mutate(Country="England & Wales") %>%
-  merge(ewpop.grouped %>% gather(Year, pop, c(3:23))) %>% 
+  merge(ewpop.grouped %>% gather(Year, pop, c(3:24))) %>% 
   mutate(mx=Dx*100000/pop) %>% 
   bind_rows(scotdata.wide %>% 
               gather(Year, Dx, c(5:26)) %>% 
@@ -1187,8 +1185,8 @@ Raw <- USdata %>%
 #Apply smoothing based approach suggested by Tim Riffe
 #Prediction models fall over if you include <10 year olds, so exclude them as not relevant to analysis
 
-ShortCountries <- c("England & Wales")
-LongCountries <- c("USA", "Scotland", "Canada", "Northern Ireland")
+#ShortCountries <- c("England & Wales")
+LongCountries <- c("USA", "Scotland", "Canada", "Northern Ireland", "England & Wales")
 
 #First do countries with data only up to 2021
 x <- seq(10,85, by=5)
@@ -1286,9 +1284,10 @@ for(i in LongCountries){
   }
 }
 
-Rawsmoothed <- bind_rows(mx_smoothed1D1, mx_smoothed1D2) %>% 
+Rawsmoothed <- #bind_rows(mx_smoothed1D1, mx_smoothed1D2) %>% 
+  mx_smoothed1D2 %>% 
   merge(scotpop %>% gather(Year, pop.s, c(3:24)) %>% 
-           merge(ewpop %>% gather(Year, pop.ew, c(3:23)), all.x=TRUE) %>% 
+           merge(ewpop %>% gather(Year, pop.ew, c(3:24)), all.x=TRUE) %>% 
            merge(nipop %>% gather(Year, pop.ni, c(3:24)), all.x=TRUE) %>%
            mutate(Sex=if_else(Sex==1, "Male", "Female")) %>% 
            merge(USpop %>% rename(pop.us=Ex)) %>% 
@@ -1324,6 +1323,7 @@ ASdata <- Raw %>%
 agg_tiff("Outputs/DoDPandemicPaperFig1Updated.tiff", units="in", width=10, height=6, res=600)
 ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>% 
          mutate(Sex=factor(Sex, levels=c("Male", "Female"))), aes(x=Year, y=mx_std, colour=Cause))+
+  geom_hline(yintercept=0, colour="grey20")+
   geom_rect(aes(xmin=2019.5, xmax=2022.5, ymin=0, ymax=56), fill="Grey92", colour=NA)+
   geom_line()+
   geom_point()+
@@ -1332,15 +1332,17 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>%
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="")+
   facet_grid(Sex~Country)+
   theme_custom()+
-  theme(legend.position="top")+
+  theme(legend.position="top", axis.line.x=element_blank(),
+        panel.grid.major.y=element_line(colour="grey95"))+
   labs(title="Trends in deaths due to alcohol, drugs and suicide in the UK, USA and Canada", 
        subtitle="Grey shaded areas represent the pandemic period",
        caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
+
 dev.off()
 
 agg_tiff("Outputs/DoDPandemicPaperFig1AltUpdated.tiff", units="in", width=10, height=6, res=600)
 ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000), aes(x=Year, y=mx_std, colour=Cause))+
-  geom_hline(yintercept=0, colour="Grey20")+
+  geom_hline(yintercept=0, colour="grey20")+
   geom_line(alpha=0.3, show.legend=FALSE)+
   geom_line(data=ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2019),
             aes(x=Year, y=mx_std, colour=Cause), arrow=arrow(angle=25, type="closed", 
@@ -1352,15 +1354,18 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000), aes(x=Ye
   scale_colour_manual(values=c("#00A1FF", "#E69F00", "#CC5395"), name="")+
   facet_grid(Sex~Country)+
   theme_custom()+
-  theme(legend.position="top")+
+  theme(legend.position="top", axis.line.x=element_blank(),
+        panel.grid.major.y=element_line(colour="grey95"))+
   labs(title="Trends in deaths due to alcohol, drugs and suicide in the UK, USA and Canada", 
        subtitle="Bolder line segments represent the pandemic period",
        caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
+
 dev.off()
 
 agg_tiff("Outputs/DoDPandemicPaperFig1Altv2Updated.tiff", units="in", width=10, height=7.5, res=600)
 ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>% 
          mutate(Sex=factor(Sex, levels=c("Male", "Female"))), aes(x=Year, y=mx_std, colour=Country))+
+  geom_hline(yintercept=0, colour="grey20")+
   geom_rect(aes(xmin=2019.5, xmax=2022.5, ymin=0, ymax=56), fill="Grey92", colour=NA)+
   geom_line()+
   geom_point()+
@@ -1369,7 +1374,8 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>%
   scale_colour_manual(values=c("#017a4a", "#FFCE4E", "#3d98d3", "#ff363c", "#7559a2"), name="")+
   facet_grid(Sex~Cause)+
   theme_custom()+
-  theme(legend.position="top")+
+  theme(legend.position="top", axis.line.x=element_blank(),
+        panel.grid.major.y=element_line(colour="grey95"))+
   labs(title="Trends in deaths due to alcohol, drugs and suicide in the UK, USA and Canada", 
        subtitle="Grey shaded areas represent the pandemic period",
        caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
@@ -1535,4 +1541,6 @@ Combined_short %>%
   labs(title="Deaths by suicide",
        caption="Data from StatCan, ONS, NISRA, NRS, CDC Wonder & HMD\nPlot by @VictimOfMaths")
 dev.off()
+
+
 
