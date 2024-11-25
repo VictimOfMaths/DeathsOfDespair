@@ -10,6 +10,7 @@ library(paletteer)
 library(lubridate)
 library(ggrepel)
 library(sf)
+library(geomtextpath)
 
 #Set common font for all plots
 font <- "Lato"
@@ -134,6 +135,21 @@ ggplot(changes %>% filter(Country!="United Kingdom" & Sex!="Total") %>%
   labs(title="Alcohol-specific deaths have risen fastest in women in England",
        subtitle="Change in age-standardised mortality rates from conditions caused only by alcohol between 2019 and 2022 by sex\n ",
        caption="Data from ONS | Plot by @VictimOfMaths")
+
+dev.off()
+
+#Line graph of rates by sex
+agg_png("Outputs/ASDEngxSex.png", units="in", width=8, height=6, res=800)
+data %>% filter(Country=="England" & Sex!="Total") %>% 
+  ggplot(aes(x=Year, y=Rate, colour=Sex))+
+  geom_hline(yintercept=0, colour="grey20")+
+  geom_textline(aes(label=Sex), hjust=0.56)+
+  scale_x_continuous(name="")+
+  scale_y_continuous(name="Age-standardised deaths per 100,000")+
+  scale_colour_manual(values=c("#6600cc", "#00cc99"))+
+  theme_custom()+
+  theme(legend.position="none")+
+  labs(caption="Data from ONS")
 
 dev.off()
 
