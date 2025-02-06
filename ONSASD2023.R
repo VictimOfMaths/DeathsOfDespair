@@ -323,32 +323,32 @@ ASdata <- agedata %>%
 #Read in Local Authority data
 #England & Wales
 temp2 <- tempfile()
-source2 <- "https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/datasets/alcoholspecificdeathsinenglandandwalesbylocalauthority/current/alcoholspecificdeathsbylocalauthority2022.xlsx"
+source2 <- "https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/datasets/alcoholspecificdeathsinenglandandwalesbylocalauthority/current/alcoholspecificdeathsbylocalauthority2023.xlsx"
 temp2 <- curl_download(url=source2, destfile=temp2, quiet=FALSE, mode="wb")
 
-ladata <- read_excel(temp2, sheet="Table_2", range="A8:CZ367", col_names=FALSE) %>% 
+ladata <- read_excel(temp2, sheet="Table_2", range="A8:DE367", col_names=FALSE) %>% 
   set_names("Lacode", "Region", "UA", "LAD", 
-            paste0(rep(c("2020-22", "2019-21", "2018-20", "2017-19", "2016-18",
+            paste0(rep(c("2021-23", "2020-22", "2019-21", "2018-20", "2017-19", "2016-18",
                          "2015-17", "2014-16", "2013-15", "2012-14", "2011-13",
                          "2010-12", "2009-11", "2008-10", "2007-09", "2006-08",
                          "2005-07", "2004-06", "2003-05", "2002-04", "2001-03"),
                        each=5), 
                    rep(c("_Deaths", "_Rate", "_Marker", "_Lower", "_Upper"),
                        times=20))) %>% 
-  mutate(across(c(5:104), ~as.numeric(.x))) %>% 
-  pivot_longer(cols=c(5:104), names_to=c("Year", "Metric"), names_sep="_", values_to="Value")
+  mutate(across(c(5:109), ~as.numeric(.x))) %>% 
+  pivot_longer(cols=c(5:109), names_to=c("Year", "Metric"), names_sep="_", values_to="Value")
 
 #Scotland
 temp3 <- tempfile()
-source3 <- "https://www.nrscotland.gov.uk/files//statistics/alcohol-deaths/2022/alcohol-specific-deaths-22-all-tabs.xlsx"
+source3 <- "https://www.nrscotland.gov.uk/media/3umphcez/alcohol-specific-deaths-2023-all-tables.xlsx"
 temp3 <- curl_download(url=source3, destfile=temp3, quiet=FALSE, mode="wb")
 
-scotladata <- read_excel(temp3, sheet="Table_4B", range="A5:G632") %>% 
+scotladata <- read_excel(temp3, sheet="Table_4B", range="A5:G665") %>% 
   set_names("Year", "Laname", "Value", "Lower", "Upper", "CIs", "Deaths")
 
 #Northern Ireland
 temp4 <- tempfile()
-source4 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Alcohol_Tables_2022%20Final%20updated.xlsx"
+source4 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Alcohol_Tables_2023%20_Web%20version.xlsx"
 temp4 <- curl_download(url=source4, destfile=temp4, quiet=FALSE, mode="wb")
 
 #Take 3-year average
@@ -359,10 +359,10 @@ NIladata <- read_excel(temp4, sheet="Table 7", range="A5:L16") %>%
 
 #Combine country-level data
 UKladata <- ladata %>% 
-  filter(Metric=="Rate" & Year=="2020-22") %>% 
+  filter(Metric=="Rate" & Year=="2021-23") %>% 
   select(Lacode, Value) %>% 
   bind_rows(scotladata %>% 
-              filter(Year=="2018to2022") %>% 
+              filter(Year=="2019to2023") %>% 
               select(Laname, Value),
             NIladata %>% select(Laname, Value))
 
@@ -424,7 +424,3 @@ ltlarates2 %>% st_drop_geometry %>%
   geom_col()+
   theme_custom()
 
-#Read in English and Welst drug-related death rates
-temp5 <- tempfile()
-source5 <- ("https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/datasets/drugmisusedeathsbylocalauthority/current/2022localauthorities.xlsx")
-temp5 <- curl_download(url=source5, destfile=temp5, quiet=FALSE, mode="wb")
