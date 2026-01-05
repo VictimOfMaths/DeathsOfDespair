@@ -152,12 +152,9 @@ ewpop <- readHMDweb(CNTRY="GBRTENW", "Population", key_list("mortality.org")[1,2
   mutate(Age=as.numeric(Age), Age=if_else(is.na(Age), 110, Age)) %>% 
   filter(Year>=2001) 
 
-ewpop <- bind_rows(ewpop %>% filter(Year==2020) %>% 
-                     select("Year", "Age", "Male2", "Female2") %>% 
-                     mutate(Year=2021) %>% 
-                     set_names(c("Year", "Age", "Male", "Female")),
-                   ewpop %>% select(c("Year", "Age", "Male1", "Female1")) %>% 
-                     set_names(c("Year", "Age", "Male", "Female"))) %>% 
+ewpop <- ewpop %>% select(c("Year", "Age", "Male1", "Female1")) %>% 
+  filter(Year<=2021) %>%
+  set_names(c("Year", "Age", "Male", "Female")) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
   spread(Year, Ex) %>% 
   mutate(Sex=if_else(Sex=="Male", 1, 2)) 
@@ -181,147 +178,147 @@ rm(list=setdiff(ls(), c("ewdata.wide", "ewpop", "ewpop.grouped", "username", "pa
 ##########
 #Get Scottish data
 scotfile.2021 <- tempfile()
-scoturl.2021 <- "https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2021/vital-events-21-ref-tabs-6.xlsx"
+scoturl.2021 <- "https://webarchive.nrscotland.gov.uk/20240326182051mp_/https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2021/vital-events-21-ref-tabs-6.xlsx"
 scotfile.2021 <- curl_download(url=scoturl.2021, destfile=scotfile.2021, quiet=FALSE, mode="wb")
 
 scotdata.2021 <- read_excel(scotfile.2021, sheet="6.04", range=c("B10:Y1726"), col_names=FALSE) %>% 
   mutate(Year=2021)
 
 scotfile.2020 <- tempfile()
-scoturl.2020 <- "https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2020/vital-events-20-ref-tabs-6.xlsx"
+scoturl.2020 <- "https://webarchive.nrscotland.gov.uk/20220315040830mp_/https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2020/vital-events-20-ref-tabs-6.xlsx"
 scotfile.2020 <- curl_download(url=scoturl.2020, destfile=scotfile.2020, quiet=FALSE, mode="wb")
 
 scotdata.2020 <- read_excel(scotfile.2020, sheet="6.04", range=c("A9:X1789"), col_names=FALSE) %>% 
   mutate(Year=2020)
 
 scotfile.2019 <- tempfile()
-scoturl.2019 <- "https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2019/vital-events-19-ref-tabs-6.xlsx"
+scoturl.2019 <- "https://webarchive.nrscotland.gov.uk/20220315040830mp_/https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2019/vital-events-19-ref-tabs-6.xlsx"
 scotfile.2019 <- curl_download(url=scoturl.2019, destfile=scotfile.2019, quiet=FALSE, mode="wb")
 
 scotdata.2019 <- read_excel(scotfile.2019, sheet="6.04", range=c("A9:X1739"), col_names=FALSE) %>% 
   mutate(Year=2019)
 
 scotfile.2018 <- tempfile()
-scoturl.2018 <- "https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2018/vital-events-18-ref-tabs-6.xlsx"
+scoturl.2018 <- "https://webarchive.nrscotland.gov.uk/20220315040830mp_/https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2018/vital-events-18-ref-tabs-6.xlsx"
 scotfile.2018 <- curl_download(url=scoturl.2018, destfile=scotfile.2018, quiet=FALSE, mode="wb")
 
 scotdata.2018 <- read_excel(scotfile.2018, sheet="6.04", range=c("A9:X1698"), col_names=FALSE) %>% 
   mutate(Year=2018)
 
 scotfile.2017 <- tempfile()
-scoturl.2017 <- "https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2017/vital-events-17-ref-tabs-6-corrected.xlsx"
+scoturl.2017 <- "https://webarchive.nrscotland.gov.uk/20210314060156mp_/https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2017/vital-events-17-ref-tabs-6-corrected.xlsx"
 scotfile.2017 <- curl_download(url=scoturl.2017, destfile=scotfile.2017, quiet=FALSE, mode="wb")
 
 scotdata.2017 <- read_excel(scotfile.2017, sheet="6.04", range=c("A9:X1767"), col_names=FALSE) %>% 
   mutate(Year=2017)
 
 scotfile.2016 <- tempfile()
-scoturl.2016 <- "https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/16/6-d-cause/ve-ref-tabs-16-tab6.04.xlsx"
+scoturl.2016 <- "https://webarchive.nrscotland.gov.uk/20210314061109mp_/https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/16/6-d-cause/16-vital-events-ref-tab-6.00-all.xlsx"
 scotfile.2016 <- curl_download(url=scoturl.2016, destfile=scotfile.2016, quiet=FALSE, mode="wb")
 
 scotdata.2016 <- read_excel(scotfile.2016, sheet="6.04", range=c("A9:X1776"), col_names=FALSE) %>% 
   mutate(Year=2016)
 
 scotfile.2015 <- tempfile()
-scoturl.2015 <- "https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2015/section6/15-vital-events-ref-tabs-6-4.xlsx"
+scoturl.2015 <- "https://webarchive.nrscotland.gov.uk/20210314062647mp_/https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2015/section6/15-vital-events-ref-section-6-alltables.xlsx"
 scotfile.2015 <- curl_download(url=scoturl.2015, destfile=scotfile.2015, quiet=FALSE, mode="wb")
 
 scotdata.2015 <- read_excel(scotfile.2015, sheet="6.4", range=c("A9:W1784"), col_names=FALSE) %>% 
   mutate(Year=2015)
 
 scotfile.2014 <- tempfile()
-scoturl.2014 <- "https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2014/section-6/14-vital-events-ref-tabs-6-4.xlsx"
+scoturl.2014 <- "https://webarchive.nrscotland.gov.uk/20210314063758mp_/https://www.nrscotland.gov.uk/files//statistics/vital-events-ref-tables/2014/section-6/14-vital-events-ref-all-tables-6-corrected.xlsx"
 scotfile.2014 <- curl_download(url=scoturl.2014, destfile=scotfile.2014, quiet=FALSE, mode="wb")
 
 scotdata.2014 <- read_excel(scotfile.2014, sheet="6.4", range=c("A9:W1683"), col_names=FALSE) %>% 
   mutate(Year=2014)
 
 scotfile.2013 <- tempfile()
-scoturl.2013 <- "https://www.nrscotland.gov.uk/files//statistics/ve-ref-tables-2013/2013-ref-tabs-6-4.xls"
+scoturl.2013 <- "https://webarchive.nrscotland.gov.uk/20210314064649mp_/https://www.nrscotland.gov.uk/files//statistics/ve-ref-tables-2013/2013-ref-all-tables-sect6.xls"
 scotfile.2013 <- curl_download(url=scoturl.2013, destfile=scotfile.2013, quiet=FALSE, mode="wb")
 
 scotdata.2013 <- read_excel(scotfile.2013, sheet="6.4", range=c("A9:W1741"), col_names=FALSE) %>% 
   mutate(Year=2013)
 
 scotfile.2012 <- tempfile()
-scoturl.2012 <- "https://www.nrscotland.gov.uk/files/statistics/ve-ref-tables-2012/ve-12-t6-4.xls"
+scoturl.2012 <- "https://webarchive.nrscotland.gov.uk/20210314065708mp_/https://www.nrscotland.gov.uk/files//statistics/ve-ref-tables-2012/rev-ve12-alltables-section6.xls"
 scotfile.2012 <- curl_download(url=scoturl.2012, destfile=scotfile.2012, quiet=FALSE, mode="wb")
 
 scotdata.2012 <- read_excel(scotfile.2012, sheet="6.4", range=c("A9:W1736"), col_names=FALSE) %>% 
   mutate(Year=2012)
 
 scotfile.2011 <- tempfile()
-scoturl.2011 <- "https://www.nrscotland.gov.uk/files/statistics/ve-reftables-2011/ve-2011-t6.4.xls"
+scoturl.2011 <- "https://webarchive.nrscotland.gov.uk/20210314070639mp_/https://www.nrscotland.gov.uk/files/statistics/ve-reftables-2011/ve-ref-tables-2011-section6.xls"
 scotfile.2011 <- curl_download(url=scoturl.2011, destfile=scotfile.2011, quiet=FALSE, mode="wb")
 
 scotdata.2011 <- read_excel(scotfile.2011, sheet="6.4", range=c("A9:W1791"), col_names=FALSE) %>% 
   mutate(Year=2011)
 
 scotfile.2010 <- tempfile()
-scoturl.2010 <- "https://www.nrscotland.gov.uk/files/statistics/ve-reftables-2010/ve10-t6-4.xls"
+scoturl.2010 <- "https://webarchive.nrscotland.gov.uk/20210314071625mp_/https://www.nrscotland.gov.uk/files/statistics/ve-reftables-2010/ve10-t6-4.xls"
 scotfile.2010 <- curl_download(url=scoturl.2010, destfile=scotfile.2010, quiet=FALSE, mode="wb")
 
 scotdata.2010 <- read_excel(scotfile.2010, range=c("A9:W1779"), col_names=FALSE) %>% 
   mutate(Year=2010)
 
 scotfile.2009 <- tempfile()
-scoturl.2009 <- "https://www.nrscotland.gov.uk/files/statistics/ve-reftables-09/ve09-t6-4.xls"
+scoturl.2009 <- "https://webarchive.nrscotland.gov.uk/20210314072703mp_/https://www.nrscotland.gov.uk/files/statistics/ve-reftables-09/ve09-t6-4.xls"
 scotfile.2009 <- curl_download(url=scoturl.2009, destfile=scotfile.2009, quiet=FALSE, mode="wb")
 
 scotdata.2009 <- read_excel(scotfile.2009, range=c("A9:W1794"), col_names=FALSE) %>% 
   mutate(Year=2009)
 
 scotfile.2008 <- tempfile()
-scoturl.2008 <- "https://www.nrscotland.gov.uk/files/statistics/vital-events-ref-tables-2008/ve-2008-t6-4.xls"
+scoturl.2008 <- "https://webarchive.nrscotland.gov.uk/20210314073648mp_/https://www.nrscotland.gov.uk/files/statistics/vital-events-ref-tables-2008/ve-2008-t6-4.xls"
 scotfile.2008 <- curl_download(url=scoturl.2008, destfile=scotfile.2008, quiet=FALSE, mode="wb")
 
 scotdata.2008 <- read_excel(scotfile.2008, range=c("A9:W1811"), col_names=FALSE) %>% 
   mutate(Year=2008)
 
 scotfile.2007 <- tempfile()
-scoturl.2007 <- "https://www.nrscotland.gov.uk/files/statistics/07t6-4.xls"
+scoturl.2007 <- "https://webarchive.nrscotland.gov.uk/20210314075202mp_/https://www.nrscotland.gov.uk/files/statistics/07t6-4.xls"
 scotfile.2007 <- curl_download(url=scoturl.2007, destfile=scotfile.2007, quiet=FALSE, mode="wb")
 
 scotdata.2007 <- read_excel(scotfile.2007, range=c("A9:W1867"), col_names=FALSE) %>% 
   mutate(Year=2007)
 
 scotfile.2006 <- tempfile()
-scoturl.2006 <- "https://www.nrscotland.gov.uk/files/statistics/06t6-4%20rev.xls"
+scoturl.2006 <- "https://webarchive.nrscotland.gov.uk/20210314080331mp_/https://www.nrscotland.gov.uk/files/statistics/06t6-4%20rev.xls"
 scotfile.2006 <- curl_download(url=scoturl.2006, destfile=scotfile.2006, quiet=FALSE, mode="wb")
 
 scotdata.2006 <- read_excel(scotfile.2006, range=c("A8:W1984"), col_names=FALSE) %>% 
   mutate(Year=2006)
 
 scotfile.2005 <- tempfile()
-scoturl.2005 <- "https://www.nrscotland.gov.uk/files/statistics/old/05t6-4.xls"
+scoturl.2005 <- "https://webarchive.nrscotland.gov.uk/20210314081420mp_/https://www.nrscotland.gov.uk/files/statistics/old/05t6-4.xls"
 scotfile.2005 <- curl_download(url=scoturl.2005, destfile=scotfile.2005, quiet=FALSE, mode="wb")
 
 scotdata.2005 <- read_excel(scotfile.2005, range=c("A9:X2017"), col_names=FALSE) %>% 
   mutate(Year=2005)
 
 scotfile.2004 <- tempfile()
-scoturl.2004 <- "https://www.nrscotland.gov.uk/files/statistics/old/04t6-4.xls"
+scoturl.2004 <- "https://webarchive.nrscotland.gov.uk/20210314082843mp_/https://www.nrscotland.gov.uk/files/statistics/old/04t6-4.xls"
 scotfile.2004 <- curl_download(url=scoturl.2004, destfile=scotfile.2004, quiet=FALSE, mode="wb")
 
 scotdata.2004 <- read_excel(scotfile.2004, range=c("A9:X2033"), col_names=FALSE) %>% 
   mutate(Year=2004)
 
 scotfile.2003 <- tempfile()
-scoturl.2003 <- "https://www.nrscotland.gov.uk/files/statistics/old/03t6-4.xls"
+scoturl.2003 <- "https://webarchive.nrscotland.gov.uk/20210314084050mp_/https://www.nrscotland.gov.uk/files/statistics/old/03t6-4.xls"
 scotfile.2003 <- curl_download(url=scoturl.2003, destfile=scotfile.2003, quiet=FALSE, mode="wb")
 
 scotdata.2003 <- read_excel(scotfile.2003, range=c("A9:X2081"), col_names=FALSE) %>% 
   mutate(Year=2003)
 
 scotfile.2002 <- tempfile()
-scoturl.2002 <- "https://www.nrscotland.gov.uk/files/statistics/old/02t6-4.xls"
+scoturl.2002 <- "https://webarchive.nrscotland.gov.uk/20210314085332mp_/https://www.nrscotland.gov.uk/files/statistics/old/02t6-4.xls"
 scotfile.2002 <- curl_download(url=scoturl.2002, destfile=scotfile.2002, quiet=FALSE, mode="wb")
 
 scotdata.2002 <- read_excel(scotfile.2002, range=c("A9:X2067"), col_names=FALSE) %>% 
   mutate(Year=2002)
 
 scotfile.2001 <- tempfile()
-scoturl.2001 <- "https://www.nrscotland.gov.uk/files/statistics/old/01t6_4.xls"
+scoturl.2001 <- "https://webarchive.nrscotland.gov.uk/20210314090752mp_/https://www.nrscotland.gov.uk/files/statistics/old/01t6_4.xls"
 scotfile.2001 <- curl_download(url=scoturl.2001, destfile=scotfile.2001, quiet=FALSE, mode="wb")
 
 scotdata.2001 <- read_excel(scotfile.2001, range=c("A9:X2056"), col_names=FALSE) %>% 
@@ -443,12 +440,10 @@ scotpop <- readHMDweb(CNTRY="GBR_SCO", "Population",  key_list("mortality.org")[
   mutate(Age=as.numeric(Age), Age=if_else(is.na(Age), 110, Age)) %>% 
   filter(Year>=2001) 
 
-scotpop <- bind_rows(scotpop %>% filter(Year==2020) %>% 
-                       select("Year", "Age", "Male2", "Female2") %>% 
-                       mutate(Year=2021) %>% 
-                       set_names(c("Year", "Age", "Male", "Female")),
-                     scotpop %>% select("Year", "Age", "Male1", "Female1") %>% 
-                       set_names(c("Year", "Age", "Male", "Female"))) %>% 
+scotpop <- scotpop %>% 
+  filter(Year<=2021) %>% 
+  select("Year", "Age", "Male1", "Female1") %>% 
+  set_names(c("Year", "Age", "Male", "Female")) %>% 
   gather(Sex, Ex, c("Male", "Female")) %>% 
   spread(Year, Ex) %>% 
   mutate(Sex=if_else(Sex=="Male", 1, 2))
@@ -526,11 +521,13 @@ niallcause.2020 <- nidata.2020 %>% slice_head(n=2)
 
 nidata.2020 <- nidata.2020 %>% slice(3:nrow(.))
 
+temp <- tempfile()
 nifile.2019 <- tempfile()
-niurl.2019 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Cause_Death_Tables_2019.xlsx"
-nifile.2019 <- curl_download(url=niurl.2019, destfile=nifile.2019, quiet=FALSE, mode="wb")
+niurl.2019 <- "https://www.nisra.gov.uk/files/nisra/publications/RG_tables_2019.zip"
+temp <- curl_download(url=niurl.2019, destfile=temp, quiet=FALSE, mode="wb")
+unzip(zipfile=temp, exdir=nifile.2019)
 
-nidata.2019 <- read_excel(nifile.2019, sheet="Table 6.4", range=c("A8:X2950"), col_names=FALSE) %>% 
+nidata.2019 <- read_excel(file.path(nifile.2019, "Cause_Death_Tables_2019.xlsx"), sheet="Table 6.4", range=c("A8:X2950"), col_names=FALSE) %>% 
   mutate(Year=2019)
 
 niallcause.2019 <- nidata.2019 %>% slice_head(n=2) 
@@ -539,7 +536,7 @@ nidata.2019 <- nidata.2019 %>% slice(4:nrow(.))
 
 temp <- tempfile()
 nifile.2018 <- tempfile()
-niurl.2018 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/RG_tables_2018.zip"
+niurl.2018 <- "https://www.nisra.gov.uk/files/nisra/publications/RG_tables_2018.zip"
 temp <- curl_download(url=niurl.2018, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2018)
 
@@ -552,7 +549,7 @@ niallcause.2018 <- nidata.2018 %>% slice_head(n=2)
 nidata.2018 <- nidata.2018 %>% slice(4:nrow(.))
 
 nifile.2017 <- tempfile()
-niurl.2017 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/RG_tables_2017.zip"
+niurl.2017 <- "https://www.nisra.gov.uk/files/nisra/publications/RG_tables_2017.zip"
 temp <- curl_download(url=niurl.2017, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2017)
 
@@ -565,7 +562,7 @@ niallcause.2017 <- nidata.2017 %>% slice_head(n=2)
 nidata.2017 <- nidata.2017 %>% slice(3:nrow(.))
 
 nifile.2016 <- tempfile()
-niurl.2016 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/RG_tables_2016.zip"
+niurl.2016 <- "https://www.nisra.gov.uk/files/nisra/publications/RG_tables_2016.zip"
 temp <- curl_download(url=niurl.2016, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2016)
 
@@ -578,7 +575,7 @@ niallcause.2016 <- nidata.2016 %>% slice_head(n=2)
 nidata.2016 <- nidata.2016 %>% slice(4:nrow(.))
 
 nifile.2015 <- tempfile()
-niurl.2015 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2015.zip"
+niurl.2015 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2015.zip"
 temp <- curl_download(url=niurl.2015, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2015)
 
@@ -591,7 +588,7 @@ niallcause.2015 <- nidata.2015 %>% slice_head(n=2)
 nidata.2015 <- nidata.2015 %>% slice(4:nrow(.))
 
 nifile.2014 <- tempfile()
-niurl.2014 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2014.zip"
+niurl.2014 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2014.zip"
 temp <- curl_download(url=niurl.2014, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2014)
 
@@ -604,7 +601,7 @@ niallcause.2014 <- nidata.2014 %>% slice_head(n=2)
 nidata.2014 <- nidata.2014 %>% slice(4:nrow(.))
 
 nifile.2013 <- tempfile()
-niurl.2013 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2013.zip"
+niurl.2013 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2013.zip"
 temp <- curl_download(url=niurl.2013, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2013)
 
@@ -617,7 +614,7 @@ niallcause.2013 <- nidata.2013 %>% slice_head(n=2)
 nidata.2013 <- nidata.2013 %>% slice(4:nrow(.))
 
 nifile.2012 <- tempfile()
-niurl.2012 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2012.zip"
+niurl.2012 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2012.zip"
 temp <- curl_download(url=niurl.2012, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2012)
 
@@ -630,7 +627,7 @@ niallcause.2012 <- nidata.2012 %>% slice_head(n=2)
 nidata.2012 <- nidata.2012 %>% slice(4:nrow(.))
 
 nifile.2011 <- tempfile()
-niurl.2011 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2011.zip"
+niurl.2011 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2011.zip"
 temp <- curl_download(url=niurl.2011, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2011)
 
@@ -643,7 +640,7 @@ niallcause.2011 <- nidata.2011 %>% slice_head(n=2)
 nidata.2011 <- nidata.2011 %>% slice(4:nrow(.))
 
 nifile.2010 <- tempfile()
-niurl.2010 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2010.zip"
+niurl.2010 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2010.zip"
 temp <- curl_download(url=niurl.2010, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2010)
 
@@ -656,7 +653,7 @@ niallcause.2010 <- nidata.2010 %>% slice_head(n=2)
 nidata.2010 <- nidata.2010 %>% slice(4:nrow(.))
 
 nifile.2009 <- tempfile()
-niurl.2009 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2009.zip"
+niurl.2009 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2009.zip"
 temp <- curl_download(url=niurl.2009, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2009)
 
@@ -669,7 +666,7 @@ niallcause.2009 <- nidata.2009 %>% slice_head(n=2)
 nidata.2009 <- nidata.2009 %>% slice(4:nrow(.))
 
 nifile.2008 <- tempfile()
-niurl.2008 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2008.zip"
+niurl.2008 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2008.zip"
 temp <- curl_download(url=niurl.2008, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2008)
 
@@ -682,7 +679,7 @@ niallcause.2008 <- nidata.2008 %>% slice_head(n=2)
 nidata.2008 <- nidata.2008 %>% slice(4:nrow(.))
 
 nifile.2007 <- tempfile()
-niurl.2007 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2007.zip"
+niurl.2007 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2007.zip"
 temp <- curl_download(url=niurl.2007, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2007)
 
@@ -695,7 +692,7 @@ niallcause.2007 <- nidata.2007 %>% slice_head(n=2)
 nidata.2007 <- nidata.2007 %>% slice(4:nrow(.))
 
 nifile.2006 <- tempfile()
-niurl.2006 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2006.zip"
+niurl.2006 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2006.zip"
 temp <- curl_download(url=niurl.2006, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2006)
 
@@ -708,7 +705,7 @@ niallcause.2006 <- nidata.2006 %>% slice_head(n=2)
 nidata.2006 <- nidata.2006 %>% slice(4:nrow(.))
 
 nifile.2005 <- tempfile()
-niurl.2005 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2005.zip"
+niurl.2005 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2005_0.zip"
 temp <- curl_download(url=niurl.2005, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2005)
 
@@ -721,7 +718,7 @@ niallcause.2005 <- nidata.2005 %>% slice_head(n=2)
 nidata.2005 <- nidata.2005 %>% slice(4:nrow(.))
 
 nifile.2004 <- tempfile()
-niurl.2004 <- "https://www.nisra.gov.uk/sites/nisra.gov.uk/files/publications/Tables_2004.zip"
+niurl.2004 <- "https://www.nisra.gov.uk/files/nisra/publications/Tables_2004.zip"
 temp <- curl_download(url=niurl.2004, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=nifile.2004)
 
@@ -888,12 +885,10 @@ nipop <- readHMDweb(CNTRY="GBR_NIR", "Population",  key_list("mortality.org")[1,
   mutate(Age=as.numeric(Age), Age=if_else(is.na(Age), 110, Age)) %>% 
   filter(Year>=2001) 
 
-nipop <- bind_rows(nipop %>% filter(Year==2020) %>% 
-                     select("Year", "Age", "Male2", "Female2") %>% 
-                     mutate(Year=2021) %>% 
-                     set_names(c("Year", "Age", "Male", "Female")),
-                   nipop %>% select("Year", "Age", "Male1", "Female1") %>% 
-                     set_names(c("Year", "Age", "Male", "Female"))) %>%  
+nipop <- nipop %>% 
+  filter(Year<=2021) %>% 
+  select("Year", "Age", "Male1", "Female1") %>% 
+  set_names(c("Year", "Age", "Male", "Female")) %>%  
   gather(Sex, Ex, c("Male", "Female")) %>% 
   spread(Year, Ex) %>% 
   mutate(Sex=if_else(Sex=="Male", 1, 2)) 
@@ -1091,6 +1086,7 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000), aes(x=Ye
   facet_grid(Sex~Country)+
   theme_custom()+
   theme(legend.position="top")
+
 dev.off()
 
 agg_tiff("Outputs/DoDPandemicPaperFig1Altv2.tiff", units="in", width=10, height=6, res=600)
@@ -1105,6 +1101,7 @@ ggplot(ASdata %>% filter(!Cause %in% c("Total", "Other") & Year>=2000) %>%
   facet_grid(Sex~Cause)+
   theme_custom()+
   theme(legend.position="top")
+
 dev.off()
 
 agg_tiff("Outputs/DoDPandemicPaperFig1Altv2Scd.tiff", units="in", width=8, height=6, res=600)
@@ -1121,6 +1118,7 @@ ggplot(ASdata %>% filter(Cause=="Suicide" & Year>=2000) %>%
   theme(legend.position="top")+
   labs(title="Deaths by suicide fell below pre-pandemic trends in 2020-21",
        caption="Data from ONS, NISRA, NRS & CDC | Plot by @VictimOfMaths")
+
 dev.off()
 
 agg_tiff("Outputs/DoDPandemicPaperFig1Altv2Alc.tiff", units="in", width=8, height=6, res=600)
@@ -1138,6 +1136,7 @@ ggplot(ASdata %>% filter(Cause=="Alcohol" & Year>=2000) %>%
   labs(title="Deaths due to alcohol rose everywhere during the pandemic",
        subtitle="Age-standardised mortality rates from causes solely caused by alcohol",
        caption="Data from ONS, NISRA, NRS & CDC | Plot by @VictimOfMaths")
+
 dev.off()
 
 agg_tiff("Outputs/DoDPandemicPaperFig1Altv2Drg.tiff", units="in", width=8, height=6, res=600)
@@ -1155,6 +1154,7 @@ ggplot(ASdata %>% filter(Cause=="Drugs" & Year>=2000) %>%
   labs(title="Pre-pandemic rises in drug deaths have accelerated in the US,\nbut levelled off in Scotland",
        subtitle="Age-standardised mortality rates for drug-related deaths",
        caption="Data from ONS, NISRA, NRS & CDC | Plot by @VictimOfMaths")
+
 dev.off()
 
 #Set data up for grouped path plots
