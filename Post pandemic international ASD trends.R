@@ -80,7 +80,7 @@ RawData3 <- data.table::fread(file.path(temp2, "Morticd10_part3"))
 #2013-2016
 temp <- tempfile()
 temp2 <- tempfile()
-source <- "https://cdn.who.int/media/docs/default-source/world-health-data-platform/mortality-raw-data/morticd10_part4.zip?sfvrsn=259c5c23_24&ua=1"
+source <- "https://cdn.who.int/media/docs/default-source/world-health-data-platform/mortality-raw-data/morticd10_part4.zip?sfvrsn=259c5c23_30&ua=1"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=temp2)
 
@@ -89,7 +89,7 @@ RawData4 <- data.table::fread(file.path(temp2, "Morticd10_part4"))
 #2017-2020
 temp <- tempfile()
 temp2 <- tempfile()
-source <- "https://cdn.who.int/media/docs/default-source/world-health-data-platform/mortality-raw-data/morticd10_part5.zip?sfvrsn=ad970d0b_33&ua=1"
+source <- "https://cdn.who.int/media/docs/default-source/world-health-data-platform/mortality-raw-data/morticd10_part5.zip?sfvrsn=ad970d0b_34&ua=1"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=temp2)
 
@@ -98,7 +98,7 @@ RawData5 <- data.table::fread(file.path(temp2, "Morticd10_part5"))
 #2021-
 temp <- tempfile()
 temp2 <- tempfile()
-source <- "https://cdn.who.int/media/docs/default-source/world-health-data-platform/mortality-raw-data/morticd10_part6.zip?sfvrsn=ec801a61_3"
+source <- "https://cdn.who.int/media/docs/default-source/world-health-data-platform/mortality-raw-data/morticd10_part6.zip?sfvrsn=ec801a61_4"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=temp2)
 
@@ -116,7 +116,7 @@ CountryCodes <- data.table::fread(file.path(temp2, "country_codes"))
 #Read in population estimates
 temp <- tempfile()
 temp2 <- tempfile()
-source <- "https://cdn.who.int/media/docs/default-source/world-health-data-platform/mortality-raw-data/mort_pop.zip?sfvrsn=937039fc_25&ua=1"
+source <- "https://cdn.who.int/media/docs/default-source/world-health-data-platform/mortality-raw-data/mort_pop.zip?sfvrsn=937039fc_26&ua=1"
 temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
 unzip(zipfile=temp, exdir=temp2)
 
